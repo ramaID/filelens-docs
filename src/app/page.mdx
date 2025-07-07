@@ -1,0 +1,52 @@
+import { Guides } from '@/components/Guides'
+import { Resources } from '@/components/Resources'
+import { HeroPattern } from '@/components/HeroPattern'
+
+export const metadata = {
+  title: 'FileLens API Documentation',
+  description:
+    'Learn everything there is to know about the FileLens API and integrate FileLens into your application for high-performance file preview generation.',
+}
+
+export const sections = [
+  { title: 'Guides', id: 'guides' },
+  { title: 'Resources', id: 'resources' },
+]
+
+<HeroPattern />
+
+# FileLens API Documentation
+
+FileLens is a high-performance file preview generation service that provides multi-page document processing with download URL responses. Generate previews from various file formats including documents, images, and videos with support for PHP, JavaScript, and Java. {{ className: 'lead' }}
+
+<div className="not-prose mt-6 mb-16 flex gap-3">
+  <Button href="/quickstart" arrow="right">
+    <>Quickstart</>
+  </Button>
+  <Button href="/implementation" variant="outline">
+    <>Implementation Guide</>
+  </Button>
+</div>
+
+## Getting started {{ anchor: false }}
+
+FileLens supports 450+ file formats and provides both synchronous and asynchronous processing with multi-page document handling. The service returns download URLs instead of base64 encoded data for better performance and supports configurable output dimensions, quality, and processing options. {{ className: 'lead' }}
+
+<div className="not-prose">
+  <Button href="/api" variant="text" arrow="right">
+    <>Explore API Reference</>
+  </Button>
+</div>
+
+## Key Features
+
+- **Multi-page Document Processing**: Generate previews for every page in PDF, DOC, DOCX, PPT, PPTX files
+- **Download URL Responses**: Returns download URLs instead of base64 encoded data for better performance
+- **Asynchronous Processing**: Support for both sync and async operations
+- **Wide Format Support**: 450+ file formats supported
+- **Flexible Configuration**: Customizable output dimensions, quality, and processing options
+- **Go Implementation**: Built with Go and Gin web framework for high performance
+
+<Guides />
+
+<Resources />

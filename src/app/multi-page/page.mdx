@@ -1,0 +1,623 @@
+export const metadata = {
+  title: 'Multi-Page Processing',
+  description:
+    'Learn how to generate previews for every page in PDF, DOC, DOCX, PPT, PPTX files with FileLens multi-page document processing.',
+}
+
+export const sections = [
+  { title: 'Supported Formats', id: 'supported-formats' },
+  { title: 'Processing Options', id: 'processing-options' },
+  { title: 'File Naming', id: 'file-naming' },
+  { title: 'Examples', id: 'examples' },
+  { title: 'Best Practices', id: 'best-practices' },
+]
+
+# Multi-Page Document Processing
+
+FileLens provides comprehensive multi-page document processing capabilities, allowing you to generate preview images for every page in PDF, DOC, DOCX, PPT, PPTX, and other document formats. This guide covers everything you need to know about working with multi-page documents. {{ className: 'lead' }}
+
+---
+
+## Supported Formats {{ anchor: false }}
+
+### Document Types
+
+FileLens supports multi-page processing for the following document formats:
+
+<Row>
+  <Col>
+
+    **PDF Documents**
+    - Native PDF processing
+    - Preserves vector graphics when possible
+    - Supports password-protected PDFs
+    - Handles complex layouts and fonts
+
+    **Microsoft Office**
+    - DOC, DOCX (Word documents)
+    - XLS, XLSX (Excel spreadsheets)
+    - PPT, PPTX (PowerPoint presentations)
+    - Converts via LibreOffice pipeline
+
+  </Col>
+  <Col>
+
+    **OpenDocument Formats**
+    - ODT (Text documents)
+    - ODS (Spreadsheets)
+    - ODP (Presentations)
+    - Full compatibility with LibreOffice
+
+    **Other Formats**
+    - RTF (Rich Text Format)
+    - TXT (Plain text files)
+    - CSV (Comma-separated values)
+    - Many other document formats via LibreOffice
+
+  </Col>
+</Row>
+
+### Processing Pipeline
+
+<Note>
+  Office documents (DOC, DOCX, PPT, PPTX, etc.) are first converted to PDF using LibreOffice, then processed page by page for optimal quality and compatibility.
+</Note>
+
+---
+
+## Processing Options {{ anchor: false }}
+
+### Page Control
+
+The `all_pages` option controls how many pages are processed:
+
+<CodeGroup>
+
+```json {{ title: 'All Pages (Default)' }}
+{
+  "input": "https://example.com/document.pdf",
+  "output_format": "jpg",
+  "options": {
+    "all_pages": true,
+    "width": 800,
+    "height": 600
+  }
+}
+```
+
+```json {{ title: 'First Page Only' }}
+{
+  "input": "https://example.com/document.pdf",
+  "output_format": "jpg",
+  "options": {
+    "all_pages": false,
+    "width": 800,
+    "height": 600
+  }
+}
+```
+
+</CodeGroup>
+
+### Quality Settings
+
+Different quality settings work better for different document types:
+
+<Properties>
+  <Property name="quality" type="integer">
+    **High Quality (90-100)**: Best for presentations and graphics-heavy documents
+  </Property>
+  <Property name="quality" type="integer">
+    **Medium Quality (70-89)**: Good balance for text documents
+  </Property>
+  <Property name="quality" type="integer">
+    **Low Quality (50-69)**: Fastest processing, suitable for thumbnails
+  </Property>
+</Properties>
+
+### Resolution Settings
+
+Choose appropriate dimensions based on your use case:
+
+<Row>
+  <Col>
+
+    **Thumbnail Size**
+    - Width: 200-400px
+    - Height: 200-400px
+    - Best for file browsers and quick previews
+
+    **Standard Preview**
+    - Width: 600-800px
+    - Height: 800-1000px
+    - Good for web display and general viewing
+
+  </Col>
+  <Col>
+
+    **High Resolution**
+    - Width: 1200-1920px
+    - Height: 1600-2560px
+    - Best for detailed viewing and printing
+
+    **Custom Aspect Ratios**
+    - Maintain document proportions
+    - Consider target display requirements
+    - Balance file size vs. quality
+
+  </Col>
+</Row>
+
+---
+
+## File Naming {{ anchor: false }}
+
+### Naming Convention
+
+Generated files follow a consistent naming pattern:
+
+```
+{type}_{timestamp}_{process_id}_{hash}_{page_number}.{extension}
+```
+
+### Synchronous Files
+
+```bash
+sync_1641312000_12345_abc1_1.jpg    # Page 1
+sync_1641312000_12345_abc1_2.jpg    # Page 2
+sync_1641312000_12345_abc1_3.jpg    # Page 3
+```
+
+### Asynchronous Files
+
+```bash
+result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png    # Page 1
+result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png    # Page 2
+result_550e8400-e29b-41d4-a716-446655440000_1641312000_3.png    # Page 3
+```
+
+### File Components
+
+<Properties>
+  <Property name="type" type="string">
+    `sync` for synchronous requests, `result` for asynchronous jobs
+  </Property>
+  <Property name="timestamp" type="string">
+    Unix timestamp when processing started
+  </Property>
+  <Property name="process_id" type="string">
+    Process ID (sync) or Job UUID (async)
+  </Property>
+  <Property name="hash" type="string">
+    Short hash of input (sync only)
+  </Property>
+  <Property name="page_number" type="integer">
+    Sequential page number starting from 1
+  </Property>
+  <Property name="extension" type="string">
+    File extension matching output_format
+  </Property>
+</Properties>
+
+---
+
+## Examples {{ anchor: false }}
+
+### PDF Multi-Page Processing
+
+<CodeGroup>
+
+```bash {{ title: 'cURL' }}
+curl -X POST http://localhost:3000/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/report.pdf",
+    "output_format": "jpg",
+    "options": {
+      "width": 800,
+      "height": 600,
+      "quality": 90,
+      "all_pages": true
+    }
+  }'
+```
+
+```javascript {{ title: 'JavaScript' }}
+const response = await fetch('http://localhost:3000/preview', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    input: 'https://example.com/report.pdf',
+    output_format: 'jpg',
+    options: {
+      width: 800,
+      height: 600,
+      quality: 90,
+      all_pages: true
+    }
+  })
+});
+
+const result = await response.json();
+
+// Process each page
+result.preview_urls.forEach((url, index) => {
+  console.log(`Page ${index + 1}: ${url}`);
+});
+```
+
+```php {{ title: 'PHP' }}
+<?php
+$client = new FileLensClient();
+
+$result = $client->generatePreview(
+    'https://example.com/report.pdf',
+    'jpg',
+    [
+        'width' => 800,
+        'height' => 600,
+        'quality' => 90,
+        'all_pages' => true
+    ]
+);
+
+echo "Generated {$result['total_pages']} pages:\n";
+foreach ($result['preview_urls'] as $index => $url) {
+    echo "Page " . ($index + 1) . ": {$url}\n";
+}
+?>
+```
+
+```java {{ title: 'Java' }}
+FileLensClient client = new FileLensClient();
+
+Map<String, Object> options = Map.of(
+    "width", 800,
+    "height", 600,
+    "quality", 90,
+    "all_pages", true
+);
+
+PreviewResponse result = client.generatePreview(
+    "https://example.com/report.pdf",
+    "jpg",
+    options
+);
+
+System.out.println("Generated " + result.getTotalPages() + " pages:");
+for (int i = 0; i < result.getPreviewUrls().size(); i++) {
+    System.out.println("Page " + (i + 1) + ": " + result.getPreviewUrls().get(i));
+}
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Preview generated successfully",
+  "preview_urls": [
+    "/download/sync_1641312000_12345_def4_1.jpg",
+    "/download/sync_1641312000_12345_def4_2.jpg",
+    "/download/sync_1641312000_12345_def4_3.jpg",
+    "/download/sync_1641312000_12345_def4_4.jpg",
+    "/download/sync_1641312000_12345_def4_5.jpg"
+  ],
+  "total_pages": 5,
+  "job_id": null
+}
+```
+
+### PowerPoint Presentation Processing
+
+<CodeGroup>
+
+```bash {{ title: 'Async Processing' }}
+# Submit job
+curl -X POST http://localhost:3000/preview/async \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/presentation.pptx",
+    "output_format": "png",
+    "options": {
+      "width": 1920,
+      "height": 1080,
+      "quality": 95,
+      "all_pages": true
+    }
+  }'
+
+# Check status
+curl http://localhost:3000/preview/status/550e8400-e29b-41d4-a716-446655440000
+
+# Download slides
+curl http://localhost:3000/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png -o slide1.png
+curl http://localhost:3000/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png -o slide2.png
+```
+
+```javascript {{ title: 'Async with Progress' }}
+async function processPresentationWithProgress(input) {
+  const client = new FileLensClient();
+
+  // Start async job
+  const jobId = await client.generatePreviewAsync(input, 'png', {
+    width: 1920,
+    height: 1080,
+    quality: 95,
+    all_pages: true
+  });
+
+  console.log(`Job started: ${jobId}`);
+
+  // Poll for progress
+  let status;
+  do {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    status = await client.getJobStatus(jobId);
+    console.log(`Progress: ${status.progress}% - ${status.status}`);
+  } while (status.status === 'processing' || status.status === 'pending');
+
+  if (status.status === 'completed') {
+    console.log(`Generated ${status.total_pages} slides`);
+
+    // Download all slides
+    for (let i = 0; i < status.result_urls.length; i++) {
+      const url = status.result_urls[i];
+      const filename = `slide_${i + 1}.png`;
+      await client.downloadFile(url, `./slides/${filename}`);
+      console.log(`Downloaded: ${filename}`);
+    }
+  } else {
+    console.error(`Job failed: ${status.message}`);
+  }
+}
+```
+
+</CodeGroup>
+
+### Excel Spreadsheet Processing
+
+<CodeGroup>
+
+```php {{ title: 'Spreadsheet Processing' }}
+<?php
+class ExcelProcessor {
+    private $client;
+
+    public function __construct() {
+        $this->client = new FileLensClient();
+    }
+
+    public function processSpreadsheet($input, $outputDir = './sheets/') {
+        $result = $this->client->generatePreview($input, 'png', [
+            'width' => 1200,
+            'height' => 900,
+            'quality' => 85,
+            'all_pages' => true
+        ]);
+
+        if (!is_dir($outputDir)) {
+            mkdir($outputDir, 0777, true);
+        }
+
+        $downloadedSheets = [];
+        foreach ($result['preview_urls'] as $index => $url) {
+            $sheetNumber = $index + 1;
+            $filename = "sheet_{$sheetNumber}.png";
+            $outputPath = $outputDir . $filename;
+
+            $fileContent = file_get_contents('http://localhost:3000' . $url);
+            file_put_contents($outputPath, $fileContent);
+
+            $downloadedSheets[] = [
+                'sheet' => $sheetNumber,
+                'file' => $outputPath,
+                'url' => $url
+            ];
+        }
+
+        return [
+            'total_sheets' => $result['total_pages'],
+            'sheets' => $downloadedSheets
+        ];
+    }
+}
+
+// Usage
+$processor = new ExcelProcessor();
+$result = $processor->processSpreadsheet('https://example.com/data.xlsx');
+
+echo "Processed {$result['total_sheets']} sheets:\n";
+foreach ($result['sheets'] as $sheet) {
+    echo "Sheet {$sheet['sheet']}: {$sheet['file']}\n";
+}
+?>
+```
+
+</CodeGroup>
+
+---
+
+## Best Practices {{ anchor: false }}
+
+### Performance Optimization
+
+<Row>
+  <Col>
+
+    **File Size Considerations**
+    - Documents > 50 pages: Use async processing
+    - Large presentations: Use async processing
+    - Complex spreadsheets: Consider smaller preview sizes
+
+    **Quality vs. Speed**
+    - Lower quality (70-80) for thumbnails
+    - Higher quality (90-95) for detailed viewing
+    - Balance based on use case requirements
+
+  </Col>
+  <Col>
+
+    **Batch Processing**
+    - Process multiple documents concurrently
+    - Use connection pooling for efficiency
+    - Implement proper error handling for batches
+
+    **Caching Strategy**
+    - Cache preview URLs to avoid reprocessing
+    - Store metadata about processed documents
+    - Implement TTL for cache invalidation
+
+  </Col>
+</Row>
+
+### Memory Management
+
+<CodeGroup>
+
+```javascript {{ title: 'Streaming Downloads' }}
+async function downloadLargeDocument(previewUrls, outputDir) {
+  const fs = require('fs');
+  const path = require('path');
+
+  // Create output directory
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Download pages in batches to manage memory
+  const batchSize = 5;
+  for (let i = 0; i < previewUrls.length; i += batchSize) {
+    const batch = previewUrls.slice(i, i + batchSize);
+
+    await Promise.all(batch.map(async (url, index) => {
+      const pageNumber = i + index + 1;
+      const filename = `page_${pageNumber}.jpg`;
+      const outputPath = path.join(outputDir, filename);
+
+      const response = await fetch(`http://localhost:3000${url}`);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      fs.writeFileSync(outputPath, buffer);
+
+      console.log(`Downloaded page ${pageNumber}`);
+    }));
+
+    // Small delay between batches
+    if (i + batchSize < previewUrls.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+}
+```
+
+```java {{ title: 'Memory-Efficient Processing' }}
+public class EfficientDocumentProcessor {
+    private final FileLensClient client;
+    private final ExecutorService executor;
+
+    public EfficientDocumentProcessor() {
+        this.client = new FileLensClient();
+        this.executor = Executors.newFixedThreadPool(3); // Limit concurrent downloads
+    }
+
+    public void processLargeDocument(String input, String outputDir) throws Exception {
+        // Use async processing for large documents
+        String jobId = client.generatePreviewAsync(input, "jpg",
+            Map.of("width", 800, "height", 600, "all_pages", true));
+
+        JobStatus status = client.waitForCompletion(jobId, 600); // 10 minutes timeout
+
+        if ("completed".equals(status.getStatus())) {
+            downloadPagesEfficiently(status.getResultUrls(), outputDir);
+        }
+    }
+
+    private void downloadPagesEfficiently(List<String> urls, String outputDir) {
+        Path outputPath = Paths.get(outputDir);
+        if (!Files.exists(outputPath)) {
+            try {
+                Files.createDirectories(outputPath);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create output directory", e);
+            }
+        }
+
+        // Download pages in parallel with limited concurrency
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        for (int i = 0; i < urls.size(); i++) {
+            final int pageNumber = i + 1;
+            final String url = urls.get(i);
+
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                try {
+                    byte[] content = client.downloadFile(url);
+                    String filename = String.format("page_%03d.jpg", pageNumber);
+                    Files.write(outputPath.resolve(filename), content);
+                    System.out.println("Downloaded page " + pageNumber);
+                } catch (Exception e) {
+                    System.err.println("Failed to download page " + pageNumber + ": " + e.getMessage());
+                }
+            }, executor);
+
+            futures.add(future);
+        }
+
+        // Wait for all downloads to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    }
+
+    public void shutdown() {
+        executor.shutdown();
+    }
+}
+```
+
+</CodeGroup>
+
+### Error Recovery
+
+<Properties>
+  <Property name="Page-level errors" type="info">
+    If processing fails for specific pages, the service will still return successfully processed pages. Check the total_pages count against the number of URLs returned.
+  </Property>
+  <Property name="Memory limits" type="warning">
+    Very large documents (>200 pages) may hit memory limits. Consider splitting into smaller batches or using lower resolution settings.
+  </Property>
+  <Property name="Timeout handling" type="error">
+    Long processing times can cause timeouts. Use async processing for documents with >50 pages or complex layouts.
+  </Property>
+</Properties>
+
+### Use Case Examples
+
+<Row>
+  <Col>
+
+    **Document Viewer**
+    - Generate thumbnails for navigation
+    - Use progressive loading for large documents
+    - Implement zoom functionality with higher-resolution versions
+
+    **Archive System**
+    - Process documents in background jobs
+    - Store previews alongside metadata
+    - Implement search within document content
+
+  </Col>
+  <Col>
+
+    **Presentation Tools**
+    - Generate slide thumbnails for editing interface
+    - Create animated previews from slide sequences
+    - Export individual slides as images
+
+    **Reporting Dashboard**
+    - Create visual summaries of document content
+    - Generate thumbnail galleries
+    - Provide quick document previews
+
+  </Col>
+</Row>

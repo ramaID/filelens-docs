@@ -1,0 +1,212 @@
+export const metadata = {
+  title: 'Quickstart',
+  description:
+    'This guide will get you all set up and ready to use the FileLens API. We\'ll cover how to get started and how to make your first API request for file preview generation.',
+}
+
+# Quickstart
+
+This guide will get you all set up and ready to use the FileLens API. We'll cover how to get started using the API and how to make your first API request. We'll also look at where to go next to find all the information you need to take full advantage of our powerful file preview generation service. {{ className: 'lead' }}
+
+<Note>
+  FileLens currently runs without authentication for development. For production deployments, consider implementing API keys or JWT tokens for security.
+</Note>
+
+## Base URL
+
+The FileLens API is available at:
+
+```
+http://localhost:3000
+```
+
+For production deployments, replace `localhost:3000` with your actual server address.
+
+## Choose your implementation
+
+FileLens works with any HTTP client, but we'll focus on implementation examples for PHP, JavaScript, and Java. In the following examples, you can see how to make requests in each language.
+
+<CodeGroup>
+
+```bash {{ title: 'cURL' }}
+# cURL is most likely already installed on your machine
+curl --version
+```
+
+```bash {{ language: 'javascript' }}
+# For Node.js, you can use built-in fetch or install axios
+npm install axios
+# Or use built-in fetch (Node.js 18+)
+```
+
+```bash {{ language: 'php' }}
+# PHP has built-in cURL support
+# Ensure php-curl extension is installed
+php -m | grep curl
+```
+
+```bash {{ language: 'java', title: 'Java' }}
+# Java has built-in HTTP client (Java 11+)
+# Or add HTTP client dependency to your project
+```
+
+</CodeGroup>
+
+<div className="not-prose">
+  <Button href="/implementation" variant="text" arrow="right">
+    <>Check out detailed implementation guides</>
+  </Button>
+</div>
+
+## Making your first API request
+
+After setting up your development environment, you are ready to make your first call to the FileLens API. Below, you can see how to send a POST request to the preview endpoint to generate a file preview.
+
+<CodeGroup tag="POST" label="/preview">
+
+```bash {{ title: 'cURL' }}
+curl -X POST http://localhost:3000/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/document.pdf",
+    "output_format": "jpg",
+    "options": {
+      "width": 800,
+      "height": 600,
+      "quality": 90,
+      "all_pages": true
+    }
+  }'
+```
+
+```javascript
+// Using fetch (Node.js 18+ or browser)
+const response = await fetch('http://localhost:3000/preview', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    input: 'https://example.com/document.pdf',
+    output_format: 'jpg',
+    options: {
+      width: 800,
+      height: 600,
+      quality: 90,
+      all_pages: true
+    }
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```php
+<?php
+$url = 'http://localhost:3000/preview';
+$data = [
+    'input' => 'https://example.com/document.pdf',
+    'output_format' => 'jpg',
+    'options' => [
+        'width' => 800,
+        'height' => 600,
+        'quality' => 90,
+        'all_pages' => true
+    ]
+];
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+curl_close($ch);
+
+$result = json_decode($response, true);
+print_r($result);
+?>
+```
+
+```java {{ title: 'Java' }}
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+
+public class FileLensExample {
+    public static void main(String[] args) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+
+        String json = """
+        {
+            "input": "https://example.com/document.pdf",
+            "output_format": "jpg",
+            "options": {
+                "width": 800,
+                "height": 600,
+                "quality": 90,
+                "all_pages": true
+            }
+        }
+        """;
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:3000/preview"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .build();
+
+        HttpResponse<String> response = client.send(request,
+            HttpResponse.BodyHandlers.ofString());
+
+        System.out.println(response.body());
+    }
+}
+```
+
+</CodeGroup>
+
+<div className="not-prose">
+  <Button href="/api" variant="text" arrow="right">
+    <>Read the full API reference</>
+  </Button>
+</div>
+
+## Understanding the response
+
+A successful request will return a JSON response with download URLs for the generated previews:
+
+```json
+{
+  "success": true,
+  "message": "Preview generated successfully",
+  "preview_urls": [
+    "/download/sync_1641312000_12345_def4_1.jpg",
+    "/download/sync_1641312000_12345_def4_2.jpg",
+    "/download/sync_1641312000_12345_def4_3.jpg"
+  ],
+  "total_pages": 3,
+  "job_id": null
+}
+```
+
+You can then download the preview files using the provided URLs:
+
+```bash
+curl http://localhost:3000/download/sync_1641312000_12345_def4_1.jpg -o preview_page_1.jpg
+```
+
+## What's next?
+
+Great, you're now set up and have made your first request to the FileLens API. Here are a few links that might be handy as you venture further:
+
+- [Learn about multi-page document processing](/multi-page)
+- [Check out the complete API reference](/api)
+- [Learn about asynchronous processing](/preview)
+- [Deploy FileLens with Docker](/docker)

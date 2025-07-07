@@ -1,0 +1,919 @@
+export const metadata = {
+  title: 'Job Status',
+  description:
+    'Check the status and progress of asynchronous preview generation jobs with FileLens, including monitoring and management capabilities.',
+}
+
+export const sections = [
+  { title: 'Job Lifecycle', id: 'job-lifecycle' },
+  { title: 'Status Monitoring', id: 'status-monitoring' },
+  { title: 'Progress Tracking', id: 'progress-tracking' },
+  { title: 'Job Management', id: 'job-management' },
+]
+
+# Job Status
+
+When using asynchronous preview generation, FileLens creates jobs that run in the background. This guide covers how to monitor job status, track progress, and manage running jobs effectively. {{ className: 'lead' }}
+
+---
+
+## Job Lifecycle {{ anchor: false }}
+
+### Job States
+
+Asynchronous jobs progress through several states:
+
+<Properties>
+  <Property name="pending" type="info">
+    Job has been created and is waiting to be processed
+  </Property>
+  <Property name="processing" type="warning">
+    Job is currently being processed by the server
+  </Property>
+  <Property name="completed" type="success">
+    Job has finished successfully with results available
+  </Property>
+  <Property name="failed" type="error">
+    Job has failed due to an error during processing
+  </Property>
+</Properties>
+
+### Typical Job Flow
+
+<Row>
+  <Col>
+
+    **1. Job Creation**
+    - Submit request to `/preview/async`
+    - Receive job ID
+    - Job enters "pending" state
+
+    **2. Processing**
+    - Job moves to "processing" state
+    - Progress updates available
+    - Server generates previews
+
+  </Col>
+  <Col>
+
+    **3. Completion**
+    - Job moves to "completed" state
+    - Result URLs become available
+    - Files ready for download
+
+    **4. Cleanup**
+    - Files available for limited time
+    - Job data eventually cleaned up
+    - Download before expiration
+
+  </Col>
+</Row>
+
+### Job Response Format
+
+<CodeGroup>
+
+```json {{ title: 'Job Creation Response' }}
+{
+  "success": true,
+  "message": "Job created successfully",
+  "preview_urls": null,
+  "total_pages": null,
+  "job_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+```json {{ title: 'Status Response (Processing)' }}
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "message": "Processing page 3 of 7",
+  "result_urls": null,
+  "total_pages": null,
+  "progress": 43
+}
+```
+
+```json {{ title: 'Status Response (Completed)' }}
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "message": "Preview generated successfully",
+  "result_urls": [
+    "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png",
+    "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png"
+  ],
+  "total_pages": 2,
+  "progress": 100
+}
+```
+
+</CodeGroup>
+
+---
+
+## Status Monitoring {{ anchor: false }}
+
+### Basic Status Check
+
+Check job status using the job ID:
+
+<CodeGroup>
+
+```bash {{ title: 'cURL Status Check' }}
+curl http://localhost:3000/preview/status/550e8400-e29b-41d4-a716-446655440000
+```
+
+```javascript {{ title: 'JavaScript Status Check' }}
+async function getJobStatus(jobId) {
+  try {
+    const response = await fetch(`http://localhost:3000/preview/status/${jobId}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const status = await response.json();
+    return status;
+
+  } catch (error) {
+    console.error('Failed to get job status:', error.message);
+    throw error;
+  }
+}
+
+// Usage
+const status = await getJobStatus('550e8400-e29b-41d4-a716-446655440000');
+console.log(`Job ${status.job_id}: ${status.status} (${status.progress}%)`);
+```
+
+```php {{ title: 'PHP Status Check' }}
+<?php
+function getJobStatus($jobId, $baseUrl = 'http://localhost:3000') {
+    $url = $baseUrl . '/preview/status/' . $jobId;
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_HTTPHEADER => ['Accept: application/json']
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        throw new Exception("Failed to get job status: HTTP $httpCode");
+    }
+
+    return json_decode($response, true);
+}
+
+// Usage
+try {
+    $status = getJobStatus('550e8400-e29b-41d4-a716-446655440000');
+    echo "Job {$status['job_id']}: {$status['status']} ({$status['progress']}%)\n";
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+?>
+```
+
+```java {{ title: 'Java Status Check' }}
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class JobStatusChecker {
+    private final HttpClient httpClient;
+    private final ObjectMapper objectMapper;
+    private final String baseUrl;
+
+    public JobStatusChecker(String baseUrl) {
+        this.httpClient = HttpClient.newHttpClient();
+        this.objectMapper = new ObjectMapper();
+        this.baseUrl = baseUrl.replaceAll("/$", "");
+    }
+
+    public JobStatus getJobStatus(String jobId) throws Exception {
+        String url = baseUrl + "/preview/status/" + jobId;
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .GET()
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request,
+            HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Failed to get job status: HTTP " + response.statusCode());
+        }
+
+        return objectMapper.readValue(response.body(), JobStatus.class);
+    }
+}
+
+// Usage
+JobStatusChecker checker = new JobStatusChecker("http://localhost:3000");
+JobStatus status = checker.getJobStatus("550e8400-e29b-41d4-a716-446655440000");
+
+System.out.println("Job " + status.getJobId() + ": " +
+                  status.getStatus() + " (" + status.getProgress() + "%)");
+```
+
+</CodeGroup>
+
+---
+
+## Progress Tracking {{ anchor: false }}
+
+### Polling for Updates
+
+Continuously monitor job progress until completion:
+
+<CodeGroup>
+
+```javascript {{ title: 'Progress Polling' }}
+class JobMonitor {
+  constructor(baseUrl = 'http://localhost:3000', pollInterval = 2000) {
+    this.baseUrl = baseUrl;
+    this.pollInterval = pollInterval;
+  }
+
+  async monitorJob(jobId, onProgress = null, maxWaitTime = 300000) {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        const status = await this.getJobStatus(jobId);
+
+        // Call progress callback if provided
+        if (onProgress) {
+          onProgress(status);
+        }
+
+        // Log progress
+        this.logProgress(status);
+
+        // Check if job is complete
+        if (status.status === 'completed') {
+          console.log('✓ Job completed successfully!');
+          return status;
+        } else if (status.status === 'failed') {
+          throw new Error(`Job failed: ${status.message}`);
+        }
+
+        // Wait before next check
+        await new Promise(resolve => setTimeout(resolve, this.pollInterval));
+
+      } catch (error) {
+        console.error('Error checking job status:', error.message);
+        throw error;
+      }
+    }
+
+    throw new Error(`Job timeout after ${maxWaitTime}ms`);
+  }
+
+  async getJobStatus(jobId) {
+    const response = await fetch(`${this.baseUrl}/preview/status/${jobId}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  logProgress(status) {
+    const progress = status.progress || 0;
+    const progressBar = this.createProgressBar(progress);
+
+    console.log(`Job ${status.job_id}: ${status.status}`);
+    console.log(`Progress: ${progressBar} ${progress}%`);
+    console.log(`Message: ${status.message}`);
+    console.log('---');
+  }
+
+  createProgressBar(progress, width = 20) {
+    const filled = Math.round((progress / 100) * width);
+    const empty = width - filled;
+    return '█'.repeat(filled) + '░'.repeat(empty);
+  }
+}
+
+// Usage with progress callback
+const monitor = new JobMonitor();
+
+const result = await monitor.monitorJob(
+  '550e8400-e29b-41d4-a716-446655440000',
+  (status) => {
+    // Custom progress handling
+    if (status.status === 'processing') {
+      console.log(`Processing page ${status.message}`);
+    }
+  }
+);
+
+console.log(`Job completed! Generated ${result.total_pages} previews.`);
+```
+
+```php {{ title: 'PHP Progress Tracking' }}
+<?php
+class JobProgressTracker {
+    private $baseUrl;
+    private $pollInterval;
+
+    public function __construct($baseUrl = 'http://localhost:3000', $pollInterval = 2) {
+        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->pollInterval = $pollInterval;
+    }
+
+    public function waitForCompletion($jobId, $maxWaitTime = 300, $onProgress = null) {
+        $startTime = time();
+
+        while (time() - $startTime < $maxWaitTime) {
+            $status = $this->getJobStatus($jobId);
+
+            // Call progress callback if provided
+            if ($onProgress && is_callable($onProgress)) {
+                $onProgress($status);
+            }
+
+            $this->displayProgress($status);
+
+            if ($status['status'] === 'completed') {
+                echo "✓ Job completed successfully!\n";
+                return $status;
+            } elseif ($status['status'] === 'failed') {
+                throw new Exception('Job failed: ' . $status['message']);
+            }
+
+            sleep($this->pollInterval);
+        }
+
+        throw new Exception("Job timeout after {$maxWaitTime} seconds");
+    }
+
+    private function getJobStatus($jobId) {
+        $url = $this->baseUrl . '/preview/status/' . $jobId;
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            throw new Exception("HTTP Error: $httpCode");
+        }
+
+        return json_decode($response, true);
+    }
+
+    private function displayProgress($status) {
+        $progress = $status['progress'] ?? 0;
+        $progressBar = $this->createProgressBar($progress);
+
+        echo "\033[2J\033[H"; // Clear screen
+        echo "Job {$status['job_id']}: {$status['status']}\n";
+        echo "Progress: {$progressBar} {$progress}%\n";
+        echo "Message: {$status['message']}\n";
+        echo "---\n";
+    }
+
+    private function createProgressBar($progress, $width = 20) {
+        $filled = round(($progress / 100) * $width);
+        $empty = $width - $filled;
+        return str_repeat('█', $filled) . str_repeat('░', $empty);
+    }
+}
+
+// Usage
+$tracker = new JobProgressTracker();
+
+try {
+    $result = $tracker->waitForCompletion(
+        '550e8400-e29b-41d4-a716-446655440000',
+        300,
+        function($status) {
+            // Custom progress handling
+            error_log("Job progress: {$status['progress']}%");
+        }
+    );
+
+    echo "Job completed! Generated {$result['total_pages']} previews.\n";
+
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+?>
+```
+
+</CodeGroup>
+
+### Real-time Updates
+
+For web applications, implement real-time progress updates:
+
+<CodeGroup>
+
+```javascript {{ title: 'Web Progress Display' }}
+class WebJobMonitor {
+  constructor(baseUrl = 'http://localhost:3000') {
+    this.baseUrl = baseUrl;
+  }
+
+  async startMonitoring(jobId, containerId) {
+    const container = document.getElementById(containerId);
+
+    const updateDisplay = (status) => {
+      container.innerHTML = this.renderProgress(status);
+    };
+
+    try {
+      const result = await this.pollUntilComplete(jobId, updateDisplay);
+      container.innerHTML = this.renderComplete(result);
+      return result;
+
+    } catch (error) {
+      container.innerHTML = this.renderError(error.message);
+      throw error;
+    }
+  }
+
+  async pollUntilComplete(jobId, onUpdate) {
+    while (true) {
+      const status = await this.getJobStatus(jobId);
+      onUpdate(status);
+
+      if (status.status === 'completed') {
+        return status;
+      } else if (status.status === 'failed') {
+        throw new Error(status.message);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+
+  async getJobStatus(jobId) {
+    const response = await fetch(`${this.baseUrl}/preview/status/${jobId}`);
+    return await response.json();
+  }
+
+  renderProgress(status) {
+    const progress = status.progress || 0;
+
+    return `
+      <div class="job-monitor">
+        <h3>Job ${status.job_id}</h3>
+        <div class="status">Status: ${status.status}</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: ${progress}%"></div>
+        </div>
+        <div class="progress-text">${progress}%</div>
+        <div class="message">${status.message}</div>
+      </div>
+    `;
+  }
+
+  renderComplete(result) {
+    return `
+      <div class="job-complete">
+        <h3>✓ Job Completed!</h3>
+        <p>Generated ${result.total_pages} preview files</p>
+        <div class="download-links">
+          ${result.result_urls.map((url, index) =>
+            `<a href="${this.baseUrl}${url}" download>Download Page ${index + 1}</a>`
+          ).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  renderError(message) {
+    return `
+      <div class="job-error">
+        <h3>✗ Job Failed</h3>
+        <p>Error: ${message}</p>
+      </div>
+    `;
+  }
+}
+
+// CSS for styling
+const style = `
+  .job-monitor {
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: Arial, sans-serif;
+  }
+
+  .progress-container {
+    width: 100%;
+    height: 20px;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background-color: #4CAF50;
+    transition: width 0.3s ease;
+  }
+
+  .download-links a {
+    display: inline-block;
+    margin: 5px;
+    padding: 8px 16px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+  }
+`;
+
+// Usage
+const monitor = new WebJobMonitor();
+const result = await monitor.startMonitoring(
+  '550e8400-e29b-41d4-a716-446655440000',
+  'progress-container'
+);
+```
+
+</CodeGroup>
+
+---
+
+## Job Management {{ anchor: false }}
+
+### Multiple Job Tracking
+
+Track multiple jobs simultaneously:
+
+<CodeGroup>
+
+```javascript {{ title: 'Multi-Job Manager' }}
+class MultiJobManager {
+  constructor(baseUrl = 'http://localhost:3000') {
+    this.baseUrl = baseUrl;
+    this.jobs = new Map();
+  }
+
+  addJob(jobId, metadata = {}) {
+    this.jobs.set(jobId, {
+      id: jobId,
+      status: 'pending',
+      progress: 0,
+      startTime: Date.now(),
+      ...metadata
+    });
+  }
+
+  async checkAllJobs() {
+    const updates = [];
+
+    for (const [jobId, job] of this.jobs) {
+      if (job.status === 'completed' || job.status === 'failed') {
+        continue; // Skip finished jobs
+      }
+
+      try {
+        const status = await this.getJobStatus(jobId);
+
+        // Update job info
+        this.jobs.set(jobId, {
+          ...job,
+          status: status.status,
+          progress: status.progress || 0,
+          message: status.message,
+          lastUpdate: Date.now()
+        });
+
+        updates.push({ jobId, status });
+
+      } catch (error) {
+        console.error(`Failed to check job ${jobId}:`, error.message);
+      }
+    }
+
+    return updates;
+  }
+
+  async getJobStatus(jobId) {
+    const response = await fetch(`${this.baseUrl}/preview/status/${jobId}`);
+    return await response.json();
+  }
+
+  getJobSummary() {
+    const summary = {
+      total: this.jobs.size,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0
+    };
+
+    for (const job of this.jobs.values()) {
+      summary[job.status]++;
+    }
+
+    return summary;
+  }
+
+  getRunningJobs() {
+    return Array.from(this.jobs.values())
+      .filter(job => job.status === 'pending' || job.status === 'processing');
+  }
+
+  getCompletedJobs() {
+    return Array.from(this.jobs.values())
+      .filter(job => job.status === 'completed');
+  }
+
+  async waitForAllJobs(pollInterval = 5000) {
+    while (this.getRunningJobs().length > 0) {
+      await this.checkAllJobs();
+
+      const summary = this.getJobSummary();
+      console.log(`Jobs status: ${summary.completed} completed, ${summary.processing} processing, ${summary.pending} pending, ${summary.failed} failed`);
+
+      if (this.getRunningJobs().length > 0) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+    }
+
+    const summary = this.getJobSummary();
+    console.log(`All jobs finished: ${summary.completed} completed, ${summary.failed} failed`);
+
+    return this.getCompletedJobs();
+  }
+}
+
+// Usage
+const manager = new MultiJobManager();
+
+// Add multiple jobs
+const jobIds = [
+  '550e8400-e29b-41d4-a716-446655440000',
+  '550e8400-e29b-41d4-a716-446655440001',
+  '550e8400-e29b-41d4-a716-446655440002'
+];
+
+jobIds.forEach((jobId, index) => {
+  manager.addJob(jobId, {
+    name: `Document ${index + 1}`,
+    priority: index === 0 ? 'high' : 'normal'
+  });
+});
+
+// Wait for all jobs to complete
+const completedJobs = await manager.waitForAllJobs();
+console.log(`All ${completedJobs.length} jobs completed!`);
+```
+
+</CodeGroup>
+
+### Job Timeout Handling
+
+Implement proper timeout handling for long-running jobs:
+
+<CodeGroup>
+
+```javascript {{ title: 'Timeout Management' }}
+class JobTimeoutManager {
+  constructor(baseUrl = 'http://localhost:3000') {
+    this.baseUrl = baseUrl;
+    this.defaultTimeout = 300000; // 5 minutes
+  }
+
+  async monitorWithTimeout(jobId, options = {}) {
+    const {
+      timeout = this.defaultTimeout,
+      onProgress = null,
+      onTimeout = null,
+      pollInterval = 2000
+    } = options;
+
+    return new Promise((resolve, reject) => {
+      let isResolved = false;
+
+      // Set timeout
+      const timeoutHandle = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+
+          if (onTimeout) {
+            onTimeout(jobId);
+          }
+
+          reject(new Error(`Job ${jobId} timed out after ${timeout}ms`));
+        }
+      }, timeout);
+
+      // Start polling
+      this.pollJob(jobId, pollInterval, onProgress)
+        .then(result => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutHandle);
+            resolve(result);
+          }
+        })
+        .catch(error => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutHandle);
+            reject(error);
+          }
+        });
+    });
+  }
+
+  async pollJob(jobId, pollInterval, onProgress) {
+    while (true) {
+      const status = await this.getJobStatus(jobId);
+
+      if (onProgress) {
+        onProgress(status);
+      }
+
+      if (status.status === 'completed') {
+        return status;
+      } else if (status.status === 'failed') {
+        throw new Error(`Job failed: ${status.message}`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+  }
+
+  async getJobStatus(jobId) {
+    const response = await fetch(`${this.baseUrl}/preview/status/${jobId}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  }
+}
+
+// Usage
+const timeoutManager = new JobTimeoutManager();
+
+try {
+  const result = await timeoutManager.monitorWithTimeout(
+    '550e8400-e29b-41d4-a716-446655440000',
+    {
+      timeout: 600000, // 10 minutes
+      onProgress: (status) => {
+        console.log(`Progress: ${status.progress}%`);
+      },
+      onTimeout: (jobId) => {
+        console.log(`Job ${jobId} is taking longer than expected...`);
+        // Could implement notification system here
+      }
+    }
+  );
+
+  console.log('Job completed successfully!');
+
+} catch (error) {
+  if (error.message.includes('timed out')) {
+    console.log('Job timed out - you can check status later');
+    // Implement retry logic or user notification
+  } else {
+    console.error('Job failed:', error.message);
+  }
+}
+```
+
+</CodeGroup>
+
+### Error Recovery
+
+Handle job failures and implement recovery strategies:
+
+<CodeGroup>
+
+```javascript {{ title: 'Error Recovery' }}
+class JobRecoveryManager {
+  constructor(baseUrl = 'http://localhost:3000') {
+    this.baseUrl = baseUrl;
+    this.retryAttempts = 3;
+    this.retryDelay = 5000;
+  }
+
+  async processWithRecovery(input, outputFormat, options) {
+    let lastError;
+
+    for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
+      try {
+        console.log(`Attempt ${attempt}/${this.retryAttempts}`);
+
+        // Submit job
+        const jobId = await this.submitJob(input, outputFormat, options);
+        console.log(`Job submitted: ${jobId}`);
+
+        // Monitor with timeout
+        const result = await this.monitorJob(jobId);
+        console.log(`Job completed successfully on attempt ${attempt}`);
+
+        return result;
+
+      } catch (error) {
+        lastError = error;
+        console.error(`Attempt ${attempt} failed: ${error.message}`);
+
+        if (attempt < this.retryAttempts) {
+          console.log(`Retrying in ${this.retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+
+          // Exponential backoff
+          this.retryDelay *= 2;
+        }
+      }
+    }
+
+    throw new Error(`All ${this.retryAttempts} attempts failed. Last error: ${lastError.message}`);
+  }
+
+  async submitJob(input, outputFormat, options) {
+    const response = await fetch(`${this.baseUrl}/preview/async`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input, output_format: outputFormat, options })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+
+    return result.job_id;
+  }
+
+  async monitorJob(jobId, maxWaitTime = 600000) {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitTime) {
+      const status = await this.getJobStatus(jobId);
+
+      if (status.status === 'completed') {
+        return status;
+      } else if (status.status === 'failed') {
+        throw new Error(`Job failed: ${status.message}`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    throw new Error('Job timeout');
+  }
+
+  async getJobStatus(jobId) {
+    const response = await fetch(`${this.baseUrl}/preview/status/${jobId}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  }
+}
+
+// Usage
+const recovery = new JobRecoveryManager();
+
+try {
+  const result = await recovery.processWithRecovery(
+    'https://example.com/complex-document.pdf',
+    'png',
+    { width: 1920, height: 1080, all_pages: true }
+  );
+
+  console.log(`Successfully processed ${result.total_pages} pages`);
+
+} catch (error) {
+  console.error('Failed to process document after all retries:', error.message);
+  // Implement fallback strategy or user notification
+}
+```
+
+</CodeGroup>

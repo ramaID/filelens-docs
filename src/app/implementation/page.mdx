@@ -1,0 +1,934 @@
+export const metadata = {
+  title: 'Implementation Guide',
+  description:
+    'Learn how to implement FileLens in your applications using PHP, JavaScript, and Java with detailed examples and best practices.',
+}
+
+export const sections = [
+  { title: 'PHP Implementation', id: 'php-implementation' },
+  { title: 'JavaScript Implementation', id: 'javascript-implementation' },
+  { title: 'Java Implementation', id: 'java-implementation' },
+  { title: 'Error Handling', id: 'error-handling' },
+  { title: 'Best Practices', id: 'best-practices' },
+]
+
+# Implementation Guide
+
+This guide provides detailed implementation examples for integrating FileLens into your applications using PHP, JavaScript, and Java. We'll cover both synchronous and asynchronous processing, error handling, and best practices. {{ className: 'lead' }}
+
+---
+
+## PHP Implementation {{ anchor: false }}
+
+### Basic Setup
+
+First, ensure you have cURL support enabled in your PHP installation:
+
+```bash
+# Check if cURL is available
+php -m | grep curl
+```
+
+### Simple Preview Generation
+
+<CodeGroup>
+
+```php {{ title: 'Basic Example' }}
+<?php
+class FileLensClient
+{
+    private $baseUrl;
+
+    public function __construct($baseUrl = 'http://localhost:3000') {
+        $this->baseUrl = rtrim($baseUrl, '/');
+    }
+
+    public function generatePreview($input, $outputFormat = 'jpg', $options = []) {
+        $url = $this->baseUrl . '/preview';
+        $data = [
+            'input' => $input,
+            'output_format' => $outputFormat,
+            'options' => $options
+        ];
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            throw new Exception("HTTP Error: $httpCode");
+        }
+
+        $result = json_decode($response, true);
+        if (!$result['success']) {
+            throw new Exception($result['message']);
+        }
+
+        return $result;
+    }
+}
+
+// Usage
+$client = new FileLensClient();
+try {
+    $result = $client->generatePreview(
+        'https://example.com/document.pdf',
+        'jpg',
+        ['width' => 800, 'height' => 600, 'all_pages' => true]
+    );
+
+    foreach ($result['preview_urls'] as $index => $url) {
+        echo "Page " . ($index + 1) . ": " . $url . "\n";
+    }
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+?>
+```
+
+```php {{ title: 'Async Processing' }}
+<?php
+class FileLensAsyncClient extends FileLensClient
+{
+    public function generatePreviewAsync($input, $outputFormat = 'jpg', $options = []) {
+        $url = $this->baseUrl . '/preview/async';
+        $data = [
+            'input' => $input,
+            'output_format' => $outputFormat,
+            'options' => $options
+        ];
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            throw new Exception("HTTP Error: $httpCode");
+        }
+
+        $result = json_decode($response, true);
+        if (!$result['success']) {
+            throw new Exception($result['message']);
+        }
+
+        return $result['job_id'];
+    }
+
+    public function getJobStatus($jobId) {
+        $url = $this->baseUrl . '/preview/status/' . $jobId;
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10
+        ]);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return json_decode($response, true);
+    }
+
+    public function waitForCompletion($jobId, $maxWaitTime = 300) {
+        $startTime = time();
+
+        while (time() - $startTime < $maxWaitTime) {
+            $status = $this->getJobStatus($jobId);
+
+            if ($status['status'] === 'completed') {
+                return $status;
+            } elseif ($status['status'] === 'failed') {
+                throw new Exception('Job failed: ' . $status['message']);
+            }
+
+            sleep(2); // Wait 2 seconds before checking again
+        }
+
+        throw new Exception('Job timeout');
+    }
+}
+
+// Usage
+$client = new FileLensAsyncClient();
+try {
+    $jobId = $client->generatePreviewAsync(
+        'https://example.com/large-presentation.pptx',
+        'png',
+        ['width' => 1920, 'height' => 1080]
+    );
+
+    echo "Job created: $jobId\n";
+
+    $result = $client->waitForCompletion($jobId);
+    echo "Job completed! Generated " . count($result['result_urls']) . " previews.\n";
+
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+?>
+```
+
+</CodeGroup>
+
+### File Download Helper
+
+```php
+<?php
+class FileLensDownloader extends FileLensClient
+{
+    public function downloadFile($downloadUrl, $outputPath) {
+        $fullUrl = $this->baseUrl . $downloadUrl;
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $fullUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 60
+        ]);
+
+        $fileContent = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            throw new Exception("Download failed: HTTP $httpCode");
+        }
+
+        return file_put_contents($outputPath, $fileContent);
+    }
+
+    public function downloadAllPreviews($previewUrls, $outputDir = './previews/') {
+        if (!is_dir($outputDir)) {
+            mkdir($outputDir, 0777, true);
+        }
+
+        $downloadedFiles = [];
+        foreach ($previewUrls as $index => $url) {
+            $filename = basename($url);
+            $outputPath = $outputDir . $filename;
+
+            if ($this->downloadFile($url, $outputPath)) {
+                $downloadedFiles[] = $outputPath;
+            }
+        }
+
+        return $downloadedFiles;
+    }
+}
+?>
+```
+
+---
+
+## JavaScript Implementation {{ anchor: false }}
+
+### Node.js Implementation
+
+<CodeGroup>
+
+```javascript {{ title: 'Basic Client' }}
+class FileLensClient {
+    constructor(baseUrl = 'http://localhost:3000') {
+        this.baseUrl = baseUrl.replace(/\/$/, '');
+    }
+
+    async generatePreview(input, outputFormat = 'jpg', options = {}) {
+        const response = await fetch(`${this.baseUrl}/preview`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                input,
+                output_format: outputFormat,
+                options
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message);
+        }
+
+        return result;
+    }
+
+    async generatePreviewAsync(input, outputFormat = 'jpg', options = {}) {
+        const response = await fetch(`${this.baseUrl}/preview/async`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                input,
+                output_format: outputFormat,
+                options
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message);
+        }
+
+        return result.job_id;
+    }
+
+    async getJobStatus(jobId) {
+        const response = await fetch(`${this.baseUrl}/preview/status/${jobId}`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        return await response.json();
+    }
+
+    async waitForCompletion(jobId, maxWaitTime = 300000) {
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < maxWaitTime) {
+            const status = await this.getJobStatus(jobId);
+
+            if (status.status === 'completed') {
+                return status;
+            } else if (status.status === 'failed') {
+                throw new Error(`Job failed: ${status.message}`);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        throw new Error('Job timeout');
+    }
+
+    async downloadFile(downloadUrl, outputPath) {
+        const fs = require('fs');
+        const path = require('path');
+
+        const response = await fetch(`${this.baseUrl}${downloadUrl}`);
+
+        if (!response.ok) {
+            throw new Error(`Download failed: HTTP ${response.status}`);
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+
+        // Ensure directory exists
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        fs.writeFileSync(outputPath, buffer);
+        return outputPath;
+    }
+}
+
+// Usage example
+(async () => {
+    const client = new FileLensClient();
+
+    try {
+        // Synchronous processing
+        const result = await client.generatePreview(
+            'https://example.com/document.pdf',
+            'jpg',
+            { width: 800, height: 600, all_pages: true }
+        );
+
+        console.log(`Generated ${result.total_pages} previews`);
+
+        // Download all preview files
+        for (let i = 0; i < result.preview_urls.length; i++) {
+            const url = result.preview_urls[i];
+            const filename = url.split('/').pop();
+            await client.downloadFile(url, `./downloads/${filename}`);
+            console.log(`Downloaded: ${filename}`);
+        }
+
+    } catch (error) {
+        console.error('Error:', error.message);
+    }
+})();
+```
+
+```javascript {{ title: 'Browser Implementation' }}
+class FileLensBrowserClient {
+    constructor(baseUrl = 'http://localhost:3000') {
+        this.baseUrl = baseUrl.replace(/\/$/, '');
+    }
+
+    async generatePreview(input, outputFormat = 'jpg', options = {}) {
+        try {
+            const response = await fetch(`${this.baseUrl}/preview`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    input,
+                    output_format: outputFormat,
+                    options
+                })
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.message);
+            }
+
+            return result;
+        } catch (error) {
+            console.error('Preview generation failed:', error);
+            throw error;
+        }
+    }
+
+    async downloadFileAsBlob(downloadUrl) {
+        const response = await fetch(`${this.baseUrl}${downloadUrl}`);
+
+        if (!response.ok) {
+            throw new Error(`Download failed: HTTP ${response.status}`);
+        }
+
+        return await response.blob();
+    }
+
+    createDownloadLink(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    async downloadAndSave(downloadUrl) {
+        const filename = downloadUrl.split('/').pop();
+        const blob = await this.downloadFileAsBlob(downloadUrl);
+        this.createDownloadLink(blob, filename);
+    }
+}
+
+// Browser usage example
+const client = new FileLensBrowserClient();
+
+document.getElementById('generate-preview').addEventListener('click', async () => {
+    const fileInput = document.getElementById('file-url').value;
+    const statusDiv = document.getElementById('status');
+
+    try {
+        statusDiv.textContent = 'Generating preview...';
+
+        const result = await client.generatePreview(fileInput, 'jpg', {
+            width: 800,
+            height: 600,
+            all_pages: true
+        });
+
+        statusDiv.innerHTML = `Generated ${result.total_pages} previews:<br>`;
+
+        result.preview_urls.forEach((url, index) => {
+            const button = document.createElement('button');
+            button.textContent = `Download Page ${index + 1}`;
+            button.onclick = () => client.downloadAndSave(url);
+            statusDiv.appendChild(button);
+        });
+
+    } catch (error) {
+        statusDiv.textContent = `Error: ${error.message}`;
+    }
+});
+```
+
+</CodeGroup>
+
+---
+
+## Java Implementation {{ anchor: false }}
+
+### Basic Java Client
+
+<CodeGroup>
+
+```java {{ title: 'FileLens Client' }}
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+
+public class FileLensClient {
+    private final String baseUrl;
+    private final HttpClient httpClient;
+    private final ObjectMapper objectMapper;
+
+    public FileLensClient(String baseUrl) {
+        this.baseUrl = baseUrl.replaceAll("/$", "");
+        this.httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
+        this.objectMapper = new ObjectMapper();
+    }
+
+    public FileLensClient() {
+        this("http://localhost:3000");
+    }
+
+    public PreviewResponse generatePreview(String input, String outputFormat,
+                                         Map<String, Object> options) throws Exception {
+        PreviewRequest request = new PreviewRequest(input, outputFormat, options);
+        String json = objectMapper.writeValueAsString(request);
+
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "/preview"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .timeout(Duration.ofMinutes(5))
+            .build();
+
+        HttpResponse<String> response = httpClient.send(httpRequest,
+            HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("HTTP Error: " + response.statusCode());
+        }
+
+        PreviewResponse result = objectMapper.readValue(response.body(),
+            PreviewResponse.class);
+
+        if (!result.isSuccess()) {
+            throw new RuntimeException(result.getMessage());
+        }
+
+        return result;
+    }
+
+    public String generatePreviewAsync(String input, String outputFormat,
+                                     Map<String, Object> options) throws Exception {
+        PreviewRequest request = new PreviewRequest(input, outputFormat, options);
+        String json = objectMapper.writeValueAsString(request);
+
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "/preview/async"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .timeout(Duration.ofMinutes(1))
+            .build();
+
+        HttpResponse<String> response = httpClient.send(httpRequest,
+            HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("HTTP Error: " + response.statusCode());
+        }
+
+        PreviewResponse result = objectMapper.readValue(response.body(),
+            PreviewResponse.class);
+
+        if (!result.isSuccess()) {
+            throw new RuntimeException(result.getMessage());
+        }
+
+        return result.getJobId();
+    }
+
+    public JobStatus getJobStatus(String jobId) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "/preview/status/" + jobId))
+            .GET()
+            .timeout(Duration.ofSeconds(10))
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request,
+            HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("HTTP Error: " + response.statusCode());
+        }
+
+        return objectMapper.readValue(response.body(), JobStatus.class);
+    }
+
+    public JobStatus waitForCompletion(String jobId, int maxWaitTimeSeconds)
+                                     throws Exception {
+        long startTime = System.currentTimeMillis();
+        long maxWaitTime = maxWaitTimeSeconds * 1000L;
+
+        while (System.currentTimeMillis() - startTime < maxWaitTime) {
+            JobStatus status = getJobStatus(jobId);
+
+            if ("completed".equals(status.getStatus())) {
+                return status;
+            } else if ("failed".equals(status.getStatus())) {
+                throw new RuntimeException("Job failed: " + status.getMessage());
+            }
+
+            Thread.sleep(2000); // Wait 2 seconds
+        }
+
+        throw new RuntimeException("Job timeout");
+    }
+
+    public byte[] downloadFile(String downloadUrl) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + downloadUrl))
+            .GET()
+            .timeout(Duration.ofMinutes(2))
+            .build();
+
+        HttpResponse<byte[]> response = httpClient.send(request,
+            HttpResponse.BodyHandlers.ofByteArray());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Download failed: HTTP " + response.statusCode());
+        }
+
+        return response.body();
+    }
+}
+
+// Data classes
+class PreviewRequest {
+    private String input;
+    private String output_format;
+    private Map<String, Object> options;
+
+    public PreviewRequest(String input, String outputFormat, Map<String, Object> options) {
+        this.input = input;
+        this.output_format = outputFormat;
+        this.options = options;
+    }
+
+    // Getters and setters...
+}
+
+class PreviewResponse {
+    private boolean success;
+    private String message;
+    private List<String> preview_urls;
+    private Integer total_pages;
+    private String job_id;
+
+    // Getters and setters...
+}
+
+class JobStatus {
+    private String job_id;
+    private String status;
+    private String message;
+    private List<String> result_urls;
+    private Integer total_pages;
+    private Integer progress;
+
+    // Getters and setters...
+}
+```
+
+```java {{ title: 'Usage Example' }}
+import java.util.Map;
+import java.util.HashMap;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
+public class FileLensExample {
+    public static void main(String[] args) {
+        FileLensClient client = new FileLensClient();
+
+        try {
+            // Synchronous processing
+            Map<String, Object> options = new HashMap<>();
+            options.put("width", 800);
+            options.put("height", 600);
+            options.put("all_pages", true);
+
+            PreviewResponse result = client.generatePreview(
+                "https://example.com/document.pdf",
+                "jpg",
+                options
+            );
+
+            System.out.println("Generated " + result.getTotalPages() + " previews");
+
+            // Download all preview files
+            for (int i = 0; i < result.getPreviewUrls().size(); i++) {
+                String url = result.getPreviewUrls().get(i);
+                String filename = url.substring(url.lastIndexOf('/') + 1);
+
+                byte[] fileContent = client.downloadFile(url);
+                Files.write(Paths.get("downloads/" + filename), fileContent);
+
+                System.out.println("Downloaded: " + filename);
+            }
+
+            // Asynchronous processing example
+            String jobId = client.generatePreviewAsync(
+                "https://example.com/large-presentation.pptx",
+                "png",
+                Map.of("width", 1920, "height", 1080)
+            );
+
+            System.out.println("Job created: " + jobId);
+
+            JobStatus status = client.waitForCompletion(jobId, 300);
+            System.out.println("Job completed! Generated " +
+                             status.getResultUrls().size() + " previews.");
+
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+</CodeGroup>
+
+---
+
+## Error Handling {{ anchor: false }}
+
+### Common Error Scenarios
+
+<CodeGroup>
+
+```javascript {{ title: 'JavaScript Error Handling' }}
+async function handlePreviewGeneration(input, format, options) {
+    try {
+        const result = await client.generatePreview(input, format, options);
+
+        // Handle success
+        console.log(`Generated ${result.total_pages} previews`);
+        return result;
+
+    } catch (error) {
+        // Handle different error types
+        if (error.message.includes('HTTP Error: 400')) {
+            console.error('Bad request - check your input parameters');
+        } else if (error.message.includes('HTTP Error: 422')) {
+            console.error('File processing failed - unsupported format or corrupted file');
+        } else if (error.message.includes('HTTP Error: 404')) {
+            console.error('File not found - check your input URL');
+        } else if (error.message.includes('timeout')) {
+            console.error('Request timed out - try using async processing');
+        } else {
+            console.error('Unknown error:', error.message);
+        }
+
+        throw error; // Re-throw if needed
+    }
+}
+
+// Retry mechanism
+async function generatePreviewWithRetry(input, format, options, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await client.generatePreview(input, format, options);
+        } catch (error) {
+            console.log(`Attempt ${attempt} failed: ${error.message}`);
+
+            if (attempt === maxRetries) {
+                throw error;
+            }
+
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve =>
+                setTimeout(resolve, Math.pow(2, attempt) * 1000)
+            );
+        }
+    }
+}
+```
+
+```php {{ title: 'PHP Error Handling' }}
+<?php
+try {
+    $result = $client->generatePreview($input, $format, $options);
+
+    // Handle success
+    foreach ($result['preview_urls'] as $url) {
+        // Process each preview URL
+    }
+
+} catch (Exception $e) {
+    // Handle different error types
+    $message = $e->getMessage();
+
+    if (strpos($message, 'HTTP Error: 400') !== false) {
+        echo "Bad request - check your input parameters\n";
+    } elseif (strpos($message, 'HTTP Error: 422') !== false) {
+        echo "File processing failed - unsupported format or corrupted file\n";
+    } elseif (strpos($message, 'HTTP Error: 404') !== false) {
+        echo "File not found - check your input URL\n";
+    } elseif (strpos($message, 'timeout') !== false) {
+        echo "Request timed out - try using async processing\n";
+    } else {
+        echo "Unknown error: $message\n";
+    }
+}
+?>
+```
+
+```java {{ title: 'Java Error Handling' }}
+public class FileLensErrorHandler {
+
+    public PreviewResponse generatePreviewWithRetry(FileLensClient client,
+                                                   String input, String format,
+                                                   Map<String, Object> options,
+                                                   int maxRetries) {
+        Exception lastException = null;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return client.generatePreview(input, format, options);
+
+            } catch (Exception e) {
+                lastException = e;
+                System.out.println("Attempt " + attempt + " failed: " + e.getMessage());
+
+                // Handle specific error types
+                if (e.getMessage().contains("HTTP Error: 400")) {
+                    throw new IllegalArgumentException("Bad request - check input parameters", e);
+                } else if (e.getMessage().contains("HTTP Error: 422")) {
+                    throw new RuntimeException("File processing failed - unsupported format", e);
+                } else if (e.getMessage().contains("HTTP Error: 404")) {
+                    throw new RuntimeException("File not found - check input URL", e);
+                }
+
+                if (attempt < maxRetries) {
+                    try {
+                        // Exponential backoff
+                        Thread.sleep((long) Math.pow(2, attempt) * 1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during retry", ie);
+                    }
+                }
+            }
+        }
+
+        throw new RuntimeException("All retry attempts failed", lastException);
+    }
+
+    public void handleAsyncJob(FileLensClient client, String jobId) {
+        try {
+            JobStatus status = client.waitForCompletion(jobId, 300);
+
+            if ("completed".equals(status.getStatus())) {
+                System.out.println("Job completed successfully");
+                // Process result URLs
+                for (String url : status.getResultUrls()) {
+                    // Download and process each file
+                }
+            }
+
+        } catch (Exception e) {
+            if (e.getMessage().contains("timeout")) {
+                System.err.println("Job is taking too long, check status later");
+                // Implement polling mechanism or notification system
+            } else {
+                System.err.println("Job processing failed: " + e.getMessage());
+            }
+        }
+    }
+}
+```
+
+</CodeGroup>
+
+---
+
+## Best Practices {{ anchor: false }}
+
+### Performance Optimization
+
+1. **Use Async Processing for Large Files**
+   - Files larger than 10MB should use async processing
+   - Multiple page documents (>20 pages) benefit from async processing
+   - Videos and complex presentations should always use async
+
+2. **Implement Proper Timeouts**
+   - Set appropriate timeouts based on file size and complexity
+   - Use different timeout values for sync vs async requests
+   - Implement retry mechanisms with exponential backoff
+
+3. **Batch Operations**
+   - Process multiple files concurrently when possible
+   - Use connection pooling for multiple requests
+   - Implement queue systems for high-volume processing
+
+### Security Considerations
+
+1. **Input Validation**
+   - Validate file URLs before sending to FileLens
+   - Sanitize user-provided input parameters
+   - Implement file size and format restrictions
+
+2. **Authentication (Production)**
+   - Implement API keys or JWT tokens for production use
+   - Use HTTPS for all communications
+   - Consider rate limiting to prevent abuse
+
+### Error Recovery
+
+1. **Graceful Degradation**
+   - Provide fallback options when preview generation fails
+   - Cache successful results to avoid repeated processing
+   - Implement proper logging for debugging
+
+2. **User Experience**
+   - Show progress indicators for long-running operations
+   - Provide clear error messages to users
+   - Allow users to retry failed operations
+
+### Resource Management
+
+1. **Memory Usage**
+   - Download and process files in chunks for large files
+   - Clean up temporary files after processing
+   - Monitor memory usage in long-running applications
+
+2. **Concurrent Requests**
+   - Limit the number of simultaneous requests
+   - Implement proper connection management
+   - Use connection pooling for better performance

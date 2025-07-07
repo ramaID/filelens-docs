@@ -1,0 +1,601 @@
+export const metadata = {
+  title: 'Preview Generation',
+  description:
+    'Learn how to generate file previews synchronously and asynchronously with FileLens, including detailed examples and best practices.',
+}
+
+export const sections = [
+  { title: 'Synchronous Processing', id: 'synchronous-processing' },
+  { title: 'Asynchronous Processing', id: 'asynchronous-processing' },
+  { title: 'Options and Parameters', id: 'options-and-parameters' },
+  { title: 'Examples', id: 'examples' },
+]
+
+# Preview Generation
+
+FileLens provides both synchronous and asynchronous preview generation capabilities for various file formats. This guide covers how to use both modes effectively, configure options, and handle different scenarios. {{ className: 'lead' }}
+
+---
+
+## Synchronous Processing {{ anchor: false }}
+
+Synchronous processing generates previews immediately and returns download URLs in the response. This is ideal for small to medium files that can be processed quickly.
+
+### When to Use Sync Processing
+
+- Files smaller than 10MB
+- Documents with fewer than 20 pages
+- Quick preview generation for immediate display
+- Simple images and short videos
+
+### Basic Sync Request
+
+<CodeGroup>
+
+```bash {{ title: 'cURL' }}
+curl -X POST http://localhost:3000/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/document.pdf",
+    "output_format": "jpg",
+    "options": {
+      "width": 800,
+      "height": 600,
+      "quality": 85
+    }
+  }'
+```
+
+```javascript {{ title: 'JavaScript' }}
+const response = await fetch('http://localhost:3000/preview', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    input: 'https://example.com/document.pdf',
+    output_format: 'jpg',
+    options: {
+      width: 800,
+      height: 600,
+      quality: 85
+    }
+  })
+});
+
+const result = await response.json();
+console.log('Generated previews:', result.preview_urls);
+```
+
+```php {{ title: 'PHP' }}
+<?php
+$data = [
+    'input' => 'https://example.com/document.pdf',
+    'output_format' => 'jpg',
+    'options' => [
+        'width' => 800,
+        'height' => 600,
+        'quality' => 85
+    ]
+];
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, 'http://localhost:3000/preview');
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+curl_close($ch);
+
+$result = json_decode($response, true);
+print_r($result['preview_urls']);
+?>
+```
+
+</CodeGroup>
+
+### Sync Response Format
+
+```json
+{
+  "success": true,
+  "message": "Preview generated successfully",
+  "preview_urls": [
+    "/download/sync_1641312000_12345_def4_1.jpg",
+    "/download/sync_1641312000_12345_def4_2.jpg"
+  ],
+  "total_pages": 2,
+  "job_id": null
+}
+```
+
+---
+
+## Asynchronous Processing {{ anchor: false }}
+
+Asynchronous processing submits a job for background processing and returns a job ID. This is ideal for large files, complex documents, or when you don't need immediate results.
+
+### When to Use Async Processing
+
+- Files larger than 10MB
+- Documents with more than 20 pages
+- Complex presentations or spreadsheets
+- Batch processing multiple files
+- When immediate results aren't required
+
+### Async Workflow
+
+1. **Submit Job**: Send POST request to `/preview/async`
+2. **Get Job ID**: Receive job ID in response
+3. **Poll Status**: Check job status with `/preview/status/{job_id}`
+4. **Download Results**: Use result URLs when job completes
+
+<CodeGroup>
+
+```bash {{ title: 'Submit Async Job' }}
+# Submit job
+curl -X POST http://localhost:3000/preview/async \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/large-presentation.pptx",
+    "output_format": "png",
+    "options": {
+      "width": 1920,
+      "height": 1080,
+      "all_pages": true
+    }
+  }'
+
+# Response
+{
+  "success": true,
+  "message": "Job created successfully",
+  "job_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+```bash {{ title: 'Check Status' }}
+# Check job status
+curl http://localhost:3000/preview/status/550e8400-e29b-41d4-a716-446655440000
+
+# Response (processing)
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "progress": 45,
+  "message": "Processing page 3 of 7"
+}
+
+# Response (completed)
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "message": "Preview generated successfully",
+  "result_urls": [
+    "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png",
+    "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png"
+  ],
+  "total_pages": 2,
+  "progress": 100
+}
+```
+
+</CodeGroup>
+
+### Async Implementation Examples
+
+<CodeGroup>
+
+```javascript {{ title: 'JavaScript Async Handler' }}
+class AsyncPreviewHandler {
+  constructor(baseUrl = 'http://localhost:3000') {
+    this.baseUrl = baseUrl;
+  }
+
+  async submitJob(input, outputFormat, options) {
+    const response = await fetch(`${this.baseUrl}/preview/async`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input,
+        output_format: outputFormat,
+        options
+      })
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+
+    return result.job_id;
+  }
+
+  async pollStatus(jobId, onProgress = null) {
+    while (true) {
+      const response = await fetch(`${this.baseUrl}/preview/status/${jobId}`);
+      const status = await response.json();
+
+      if (onProgress) {
+        onProgress(status);
+      }
+
+      if (status.status === 'completed') {
+        return status;
+      } else if (status.status === 'failed') {
+        throw new Error(status.message);
+      }
+
+      // Wait 2 seconds before next check
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+
+  async processFile(input, outputFormat, options) {
+    const jobId = await this.submitJob(input, outputFormat, options);
+    console.log(`Job submitted: ${jobId}`);
+
+    const result = await this.pollStatus(jobId, (status) => {
+      console.log(`Progress: ${status.progress}% - ${status.status}`);
+    });
+
+    console.log(`Job completed! Generated ${result.total_pages} previews`);
+    return result;
+  }
+}
+
+// Usage
+const handler = new AsyncPreviewHandler();
+const result = await handler.processFile(
+  'https://example.com/large-file.pptx',
+  'png',
+  { width: 1920, height: 1080, all_pages: true }
+);
+```
+
+```php {{ title: 'PHP Async Handler' }}
+<?php
+class AsyncPreviewHandler {
+    private $baseUrl;
+
+    public function __construct($baseUrl = 'http://localhost:3000') {
+        $this->baseUrl = rtrim($baseUrl, '/');
+    }
+
+    public function submitJob($input, $outputFormat, $options) {
+        $data = [
+            'input' => $input,
+            'output_format' => $outputFormat,
+            'options' => $options
+        ];
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $this->baseUrl . '/preview/async',
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true
+        ]);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        $result = json_decode($response, true);
+        if (!$result['success']) {
+            throw new Exception($result['message']);
+        }
+
+        return $result['job_id'];
+    }
+
+    public function getStatus($jobId) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $this->baseUrl . '/preview/status/' . $jobId,
+            CURLOPT_RETURNTRANSFER => true
+        ]);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return json_decode($response, true);
+    }
+
+    public function waitForCompletion($jobId, $maxWaitTime = 300) {
+        $startTime = time();
+
+        while (time() - $startTime < $maxWaitTime) {
+            $status = $this->getStatus($jobId);
+
+            echo "Progress: {$status['progress']}% - {$status['status']}\n";
+
+            if ($status['status'] === 'completed') {
+                return $status;
+            } elseif ($status['status'] === 'failed') {
+                throw new Exception('Job failed: ' . $status['message']);
+            }
+
+            sleep(2);
+        }
+
+        throw new Exception('Job timeout');
+    }
+}
+
+// Usage
+$handler = new AsyncPreviewHandler();
+$jobId = $handler->submitJob(
+    'https://example.com/large-file.pptx',
+    'png',
+    ['width' => 1920, 'height' => 1080, 'all_pages' => true]
+);
+
+echo "Job submitted: $jobId\n";
+$result = $handler->waitForCompletion($jobId);
+echo "Job completed! Generated {$result['total_pages']} previews.\n";
+?>
+```
+
+</CodeGroup>
+
+---
+
+## Options and Parameters {{ anchor: false }}
+
+### Output Formats
+
+<Properties>
+  <Property name="jpg" type="string">
+    JPEG format - Good compression, widely supported. Best for photos and complex images.
+  </Property>
+  <Property name="png" type="string">
+    PNG format - Lossless compression, supports transparency. Best for graphics and text.
+  </Property>
+  <Property name="gif" type="string">
+    GIF format - Limited color palette, supports animation. Good for simple graphics.
+  </Property>
+</Properties>
+
+### Dimension Options
+
+<Row>
+  <Col>
+
+    **Auto-sizing (Recommended)**
+    ```json
+    {
+      "width": 800,
+      "height": 600
+    }
+    ```
+    Maintains aspect ratio while fitting within bounds.
+
+  </Col>
+  <Col>
+
+    **Specific Dimensions**
+    ```json
+    {
+      "width": 1920,
+      "height": 1080
+    }
+    ```
+    Forces exact dimensions (may distort image).
+
+  </Col>
+</Row>
+
+### Quality Settings
+
+<Properties>
+  <Property name="90-100" type="integer">
+    **High Quality**: Best for detailed viewing, presentations. Larger file sizes.
+  </Property>
+  <Property name="70-89" type="integer">
+    **Medium Quality**: Good balance for web display. Moderate file sizes.
+  </Property>
+  <Property name="50-69" type="integer">
+    **Low Quality**: Fast processing, thumbnails. Smaller file sizes.
+  </Property>
+</Properties>
+
+### Video Options
+
+For video files, use the `preview_time` option:
+
+```json
+{
+  "input": "https://example.com/video.mp4",
+  "output_format": "jpg",
+  "options": {
+    "preview_time": "00:01:30.000",
+    "width": 1280,
+    "height": 720
+  }
+}
+```
+
+---
+
+## Examples {{ anchor: false }}
+
+### Document Processing
+
+<CodeGroup>
+
+```json {{ title: 'PDF Multi-page' }}
+{
+  "input": "https://example.com/report.pdf",
+  "output_format": "jpg",
+  "options": {
+    "width": 800,
+    "height": 600,
+    "quality": 90,
+    "all_pages": true
+  }
+}
+```
+
+```json {{ title: 'PowerPoint Slides' }}
+{
+  "input": "https://example.com/presentation.pptx",
+  "output_format": "png",
+  "options": {
+    "width": 1920,
+    "height": 1080,
+    "quality": 95,
+    "all_pages": true
+  }
+}
+```
+
+```json {{ title: 'Excel Sheets' }}
+{
+  "input": "https://example.com/spreadsheet.xlsx",
+  "output_format": "png",
+  "options": {
+    "width": 1200,
+    "height": 900,
+    "quality": 85,
+    "all_pages": true
+  }
+}
+```
+
+</CodeGroup>
+
+### Image Processing
+
+<CodeGroup>
+
+```json {{ title: 'Image Resize' }}
+{
+  "input": "https://example.com/large-image.png",
+  "output_format": "jpg",
+  "options": {
+    "width": 800,
+    "height": 600,
+    "quality": 85
+  }
+}
+```
+
+```json {{ title: 'Thumbnail Generation' }}
+{
+  "input": "https://example.com/photo.jpg",
+  "output_format": "jpg",
+  "options": {
+    "width": 200,
+    "height": 200,
+    "quality": 70
+  }
+}
+```
+
+</CodeGroup>
+
+### Video Processing
+
+<CodeGroup>
+
+```json {{ title: 'Video Thumbnail' }}
+{
+  "input": "https://example.com/video.mp4",
+  "output_format": "jpg",
+  "options": {
+    "preview_time": "00:00:05.000",
+    "width": 1280,
+    "height": 720,
+    "quality": 85
+  }
+}
+```
+
+```json {{ title: 'Multiple Timestamps' }}
+{
+  "input": "https://example.com/movie.mp4",
+  "output_format": "jpg",
+  "options": {
+    "preview_time": "00:02:30.000",
+    "width": 1920,
+    "height": 1080,
+    "quality": 90
+  }
+}
+```
+
+</CodeGroup>
+
+### Performance Optimization
+
+<Row>
+  <Col>
+
+    **For Speed**
+    - Use lower quality settings (60-80)
+    - Smaller dimensions
+    - JPEG format
+    - Single page processing
+
+  </Col>
+  <Col>
+
+    **For Quality**
+    - Higher quality settings (90-95)
+    - Larger dimensions
+    - PNG format for graphics
+    - Original aspect ratios
+
+  </Col>
+</Row>
+
+### Error Handling
+
+<CodeGroup>
+
+```javascript {{ title: 'Robust Error Handling' }}
+async function generatePreviewSafely(input, options) {
+  try {
+    const response = await fetch('http://localhost:3000/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input,
+        output_format: 'jpg',
+        options
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(`Preview failed: ${result.message}`);
+    }
+
+    return result;
+
+  } catch (error) {
+    console.error('Preview generation failed:', error.message);
+
+    // Handle specific error types
+    if (error.message.includes('404')) {
+      console.error('File not found - check URL');
+    } else if (error.message.includes('422')) {
+      console.error('File processing failed - check format');
+    } else if (error.message.includes('timeout')) {
+      console.error('Request timed out - try async processing');
+    }
+
+    throw error;
+  }
+}
+```
+
+</CodeGroup>

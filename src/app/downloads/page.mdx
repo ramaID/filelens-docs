@@ -1,0 +1,884 @@
+export const metadata = {
+  title: 'File Downloads',
+  description:
+    'Access and download generated preview files using download URLs with FileLens, including batch downloads and file management.',
+}
+
+export const sections = [
+  { title: 'Download URLs', id: 'download-urls' },
+  { title: 'File Access', id: 'file-access' },
+  { title: 'Batch Downloads', id: 'batch-downloads' },
+  { title: 'File Management', id: 'file-management' },
+]
+
+# File Downloads
+
+After generating previews with FileLens, you can download the resulting files using the provided download URLs. This guide covers how to access files, implement batch downloads, and manage the downloaded content effectively. {{ className: 'lead' }}
+
+---
+
+## Download URLs {{ anchor: false }}
+
+FileLens returns download URLs instead of base64 encoded data for better performance and easier handling. These URLs point to generated preview files stored temporarily on the server.
+
+### URL Format
+
+Download URLs follow this pattern:
+
+```
+/download/{filename}
+```
+
+Where `{filename}` follows the naming convention:
+
+<Properties>
+  <Property name="Synchronous files" type="string">
+    `sync_{timestamp}_{pid}_{hash}_{page}.{ext}`
+  </Property>
+  <Property name="Asynchronous files" type="string">
+    `result_{job_id}_{timestamp}_{page}.{ext}`
+  </Property>
+</Properties>
+
+### Example URLs
+
+<CodeGroup>
+
+```text {{ title: 'Sync Processing' }}
+/download/sync_1641312000_12345_abc1_1.jpg
+/download/sync_1641312000_12345_abc1_2.jpg
+/download/sync_1641312000_12345_abc1_3.jpg
+```
+
+```text {{ title: 'Async Processing' }}
+/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png
+/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png
+/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_3.png
+```
+
+</CodeGroup>
+
+---
+
+## File Access {{ anchor: false }}
+
+### Basic Download
+
+Download a single file using cURL or HTTP client:
+
+<CodeGroup>
+
+```bash {{ title: 'cURL Download' }}
+curl http://localhost:3000/download/sync_1641312000_12345_abc1_1.jpg \
+  -o preview_page_1.jpg
+```
+
+```bash {{ title: 'wget Download' }}
+wget http://localhost:3000/download/sync_1641312000_12345_abc1_1.jpg \
+  -O preview_page_1.jpg
+```
+
+</CodeGroup>
+
+### HTTP Headers
+
+FileLens sets appropriate headers for downloaded files:
+
+<Properties>
+  <Property name="Content-Type" type="string">
+    MIME type based on file format (image/jpeg, image/png, etc.)
+  </Property>
+  <Property name="Content-Disposition" type="string">
+    Suggests filename for browser downloads
+  </Property>
+  <Property name="Content-Length" type="integer">
+    File size in bytes
+  </Property>
+  <Property name="Cache-Control" type="string">
+    Caching instructions for browsers and proxies
+  </Property>
+</Properties>
+
+### Programming Examples
+
+<CodeGroup>
+
+```javascript {{ title: 'JavaScript Download' }}
+async function downloadFile(downloadUrl, filename) {
+  try {
+    const response = await fetch(`http://localhost:3000${downloadUrl}`);
+
+    if (!response.ok) {
+      throw new Error(`Download failed: HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+
+    // In Node.js
+    if (typeof window === 'undefined') {
+      const fs = require('fs');
+      const buffer = Buffer.from(await blob.arrayBuffer());
+      fs.writeFileSync(filename, buffer);
+      console.log(`Downloaded: ${filename}`);
+    }
+    // In browser
+    else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    return blob;
+
+  } catch (error) {
+    console.error('Download failed:', error.message);
+    throw error;
+  }
+}
+
+// Usage
+await downloadFile('/download/sync_1641312000_12345_abc1_1.jpg', 'page1.jpg');
+```
+
+```php {{ title: 'PHP Download' }}
+<?php
+function downloadFile($downloadUrl, $outputPath) {
+    $fullUrl = 'http://localhost:3000' . $downloadUrl;
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $fullUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_USERAGENT => 'FileLens-Client/1.0'
+    ]);
+
+    $fileContent = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        throw new Exception("Download failed: HTTP $httpCode");
+    }
+
+    // Ensure directory exists
+    $directory = dirname($outputPath);
+    if (!is_dir($directory)) {
+        mkdir($directory, 0777, true);
+    }
+
+    $bytesWritten = file_put_contents($outputPath, $fileContent);
+
+    if ($bytesWritten === false) {
+        throw new Exception("Failed to write file: $outputPath");
+    }
+
+    return [
+        'path' => $outputPath,
+        'size' => $bytesWritten,
+        'content_type' => $contentType
+    ];
+}
+
+// Usage
+try {
+    $result = downloadFile('/download/sync_1641312000_12345_abc1_1.jpg', './downloads/page1.jpg');
+    echo "Downloaded {$result['size']} bytes to {$result['path']}\n";
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+?>
+```
+
+```java {{ title: 'Java Download' }}
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+public class FileDownloader {
+    private final HttpClient httpClient;
+    private final String baseUrl;
+
+    public FileDownloader(String baseUrl) {
+        this.httpClient = HttpClient.newHttpClient();
+        this.baseUrl = baseUrl.replaceAll("/$", "");
+    }
+
+    public Path downloadFile(String downloadUrl, String outputPath) throws Exception {
+        String fullUrl = baseUrl + downloadUrl;
+        Path outputFilePath = Paths.get(outputPath);
+
+        // Create directory if it doesn't exist
+        Files.createDirectories(outputFilePath.getParent());
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(fullUrl))
+            .GET()
+            .build();
+
+        HttpResponse<byte[]> response = httpClient.send(request,
+            HttpResponse.BodyHandlers.ofByteArray());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Download failed: HTTP " + response.statusCode());
+        }
+
+        Files.write(outputFilePath, response.body());
+
+        System.out.println("Downloaded " + response.body().length +
+                          " bytes to " + outputPath);
+
+        return outputFilePath;
+    }
+}
+
+// Usage
+FileDownloader downloader = new FileDownloader("http://localhost:3000");
+Path downloadedFile = downloader.downloadFile(
+    "/download/sync_1641312000_12345_abc1_1.jpg",
+    "./downloads/page1.jpg"
+);
+```
+
+</CodeGroup>
+
+---
+
+## Batch Downloads {{ anchor: false }}
+
+### Sequential Downloads
+
+Download multiple files one after another:
+
+<CodeGroup>
+
+```javascript {{ title: 'Sequential Download' }}
+async function downloadAllPreviews(previewUrls, outputDir = './downloads/') {
+  const fs = require('fs');
+  const path = require('path');
+
+  // Ensure output directory exists
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  const downloadedFiles = [];
+
+  for (let i = 0; i < previewUrls.length; i++) {
+    const url = previewUrls[i];
+    const filename = url.split('/').pop();
+    const outputPath = path.join(outputDir, filename);
+
+    try {
+      console.log(`Downloading ${i + 1}/${previewUrls.length}: ${filename}`);
+
+      const response = await fetch(`http://localhost:3000${url}`);
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      fs.writeFileSync(outputPath, buffer);
+      downloadedFiles.push(outputPath);
+
+      console.log(`✓ Downloaded: ${filename}`);
+
+    } catch (error) {
+      console.error(`✗ Failed to download ${filename}: ${error.message}`);
+    }
+  }
+
+  return downloadedFiles;
+}
+
+// Usage
+const previewUrls = [
+  '/download/sync_1641312000_12345_abc1_1.jpg',
+  '/download/sync_1641312000_12345_abc1_2.jpg',
+  '/download/sync_1641312000_12345_abc1_3.jpg'
+];
+
+const files = await downloadAllPreviews(previewUrls);
+console.log(`Downloaded ${files.length} files`);
+```
+
+```php {{ title: 'PHP Batch Download' }}
+<?php
+class BatchDownloader {
+    private $baseUrl;
+    private $maxRetries;
+
+    public function __construct($baseUrl = 'http://localhost:3000', $maxRetries = 3) {
+        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->maxRetries = $maxRetries;
+    }
+
+    public function downloadAll($previewUrls, $outputDir = './downloads/') {
+        if (!is_dir($outputDir)) {
+            mkdir($outputDir, 0777, true);
+        }
+
+        $downloadedFiles = [];
+        $total = count($previewUrls);
+
+        foreach ($previewUrls as $index => $url) {
+            $filename = basename($url);
+            $outputPath = $outputDir . $filename;
+
+            echo "Downloading " . ($index + 1) . "/$total: $filename\n";
+
+            if ($this->downloadWithRetry($url, $outputPath)) {
+                $downloadedFiles[] = $outputPath;
+                echo "✓ Downloaded: $filename\n";
+            } else {
+                echo "✗ Failed to download: $filename\n";
+            }
+        }
+
+        return $downloadedFiles;
+    }
+
+    private function downloadWithRetry($url, $outputPath) {
+        for ($attempt = 1; $attempt <= $this->maxRetries; $attempt++) {
+            try {
+                $fullUrl = $this->baseUrl . $url;
+
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $fullUrl,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT => 60,
+                    CURLOPT_FOLLOWLOCATION => true
+                ]);
+
+                $content = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode === 200) {
+                    file_put_contents($outputPath, $content);
+                    return true;
+                }
+
+                echo "Attempt $attempt failed: HTTP $httpCode\n";
+
+            } catch (Exception $e) {
+                echo "Attempt $attempt failed: " . $e->getMessage() . "\n";
+            }
+
+            if ($attempt < $this->maxRetries) {
+                sleep(1); // Wait before retry
+            }
+        }
+
+        return false;
+    }
+}
+
+// Usage
+$downloader = new BatchDownloader();
+$previewUrls = [
+    '/download/sync_1641312000_12345_abc1_1.jpg',
+    '/download/sync_1641312000_12345_abc1_2.jpg',
+    '/download/sync_1641312000_12345_abc1_3.jpg'
+];
+
+$files = $downloader->downloadAll($previewUrls);
+echo "Downloaded " . count($files) . " files\n";
+?>
+```
+
+</CodeGroup>
+
+### Parallel Downloads
+
+Download multiple files simultaneously for better performance:
+
+<CodeGroup>
+
+```javascript {{ title: 'Parallel Download' }}
+async function downloadAllParallel(previewUrls, outputDir = './downloads/', maxConcurrent = 5) {
+  const fs = require('fs');
+  const path = require('path');
+
+  // Ensure output directory exists
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Download function for a single file
+  const downloadFile = async (url) => {
+    const filename = url.split('/').pop();
+    const outputPath = path.join(outputDir, filename);
+
+    try {
+      const response = await fetch(`http://localhost:3000${url}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      fs.writeFileSync(outputPath, buffer);
+
+      return { success: true, filename, path: outputPath };
+
+    } catch (error) {
+      return { success: false, filename, error: error.message };
+    }
+  };
+
+  // Process URLs in batches to limit concurrent downloads
+  const results = [];
+  for (let i = 0; i < previewUrls.length; i += maxConcurrent) {
+    const batch = previewUrls.slice(i, i + maxConcurrent);
+    const batchResults = await Promise.all(batch.map(downloadFile));
+    results.push(...batchResults);
+
+    // Log progress
+    const completed = Math.min(i + maxConcurrent, previewUrls.length);
+    console.log(`Downloaded ${completed}/${previewUrls.length} files`);
+  }
+
+  // Separate successful and failed downloads
+  const successful = results.filter(r => r.success);
+  const failed = results.filter(r => !r.success);
+
+  console.log(`✓ Successfully downloaded: ${successful.length} files`);
+  if (failed.length > 0) {
+    console.log(`✗ Failed downloads: ${failed.length} files`);
+    failed.forEach(f => console.log(`  - ${f.filename}: ${f.error}`));
+  }
+
+  return successful.map(r => r.path);
+}
+
+// Usage
+const previewUrls = [
+  '/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png',
+  '/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png',
+  '/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_3.png',
+  '/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_4.png',
+  '/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_5.png'
+];
+
+const files = await downloadAllParallel(previewUrls, './downloads/', 3);
+console.log(`All downloads completed: ${files.length} files`);
+```
+
+```java {{ title: 'Java Parallel Download' }}
+import java.util.concurrent.*;
+import java.util.List;
+import java.util.ArrayList;
+
+public class ParallelDownloader {
+    private final ExecutorService executor;
+    private final FileDownloader downloader;
+
+    public ParallelDownloader(String baseUrl, int maxConcurrent) {
+        this.executor = Executors.newFixedThreadPool(maxConcurrent);
+        this.downloader = new FileDownloader(baseUrl);
+    }
+
+    public List<String> downloadAll(List<String> previewUrls, String outputDir) {
+        List<CompletableFuture<DownloadResult>> futures = new ArrayList<>();
+
+        // Submit all download tasks
+        for (int i = 0; i < previewUrls.size(); i++) {
+            final String url = previewUrls.get(i);
+            final String filename = String.format("page_%03d%s", i + 1, getExtension(url));
+            final String outputPath = outputDir + "/" + filename;
+
+            CompletableFuture<DownloadResult> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    Path path = downloader.downloadFile(url, outputPath);
+                    return new DownloadResult(true, filename, path.toString(), null);
+                } catch (Exception e) {
+                    return new DownloadResult(false, filename, null, e.getMessage());
+                }
+            }, executor);
+
+            futures.add(future);
+        }
+
+        // Wait for all downloads to complete
+        List<DownloadResult> results = futures.stream()
+            .map(CompletableFuture::join)
+            .collect(Collectors.toList());
+
+        // Process results
+        List<String> successfulPaths = new ArrayList<>();
+        int successful = 0;
+        int failed = 0;
+
+        for (DownloadResult result : results) {
+            if (result.success) {
+                successful++;
+                successfulPaths.add(result.path);
+            } else {
+                failed++;
+                System.err.println("Failed to download " + result.filename + ": " + result.error);
+            }
+        }
+
+        System.out.println("Download completed: " + successful + " successful, " + failed + " failed");
+
+        return successfulPaths;
+    }
+
+    private String getExtension(String url) {
+        int lastDot = url.lastIndexOf('.');
+        return lastDot > 0 ? url.substring(lastDot) : ".jpg";
+    }
+
+    public void shutdown() {
+        executor.shutdown();
+    }
+
+    private static class DownloadResult {
+        final boolean success;
+        final String filename;
+        final String path;
+        final String error;
+
+        DownloadResult(boolean success, String filename, String path, String error) {
+            this.success = success;
+            this.filename = filename;
+            this.path = path;
+            this.error = error;
+        }
+    }
+}
+
+// Usage
+ParallelDownloader parallelDownloader = new ParallelDownloader("http://localhost:3000", 5);
+
+List<String> previewUrls = Arrays.asList(
+    "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png",
+    "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png",
+    "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_3.png"
+);
+
+List<String> downloadedFiles = parallelDownloader.downloadAll(previewUrls, "./downloads");
+parallelDownloader.shutdown();
+
+System.out.println("Downloaded " + downloadedFiles.size() + " files");
+```
+
+</CodeGroup>
+
+---
+
+## File Management {{ anchor: false }}
+
+### File Organization
+
+Organize downloaded files by job, document type, or date:
+
+<CodeGroup>
+
+```javascript {{ title: 'Smart File Organization' }}
+class FileOrganizer {
+  constructor(baseDir = './downloads/') {
+    this.baseDir = baseDir;
+  }
+
+  async organizeByJob(previewUrls) {
+    const organized = new Map();
+
+    for (const url of previewUrls) {
+      const filename = url.split('/').pop();
+      const jobId = this.extractJobId(filename);
+      const pageNumber = this.extractPageNumber(filename);
+
+      if (!organized.has(jobId)) {
+        organized.set(jobId, []);
+      }
+
+      organized.get(jobId).push({
+        url,
+        filename,
+        pageNumber,
+        localPath: null
+      });
+    }
+
+    // Download organized by job
+    for (const [jobId, files] of organized) {
+      const jobDir = path.join(this.baseDir, jobId);
+      await fs.promises.mkdir(jobDir, { recursive: true });
+
+      console.log(`Downloading ${files.length} files for job ${jobId}`);
+
+      for (const file of files) {
+        const outputPath = path.join(jobDir, file.filename);
+        await this.downloadFile(file.url, outputPath);
+        file.localPath = outputPath;
+      }
+    }
+
+    return organized;
+  }
+
+  async organizeByDate(previewUrls) {
+    const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateDir = path.join(this.baseDir, date);
+
+    await fs.promises.mkdir(dateDir, { recursive: true });
+
+    const files = [];
+    for (const url of previewUrls) {
+      const filename = url.split('/').pop();
+      const outputPath = path.join(dateDir, filename);
+
+      await this.downloadFile(url, outputPath);
+      files.push(outputPath);
+    }
+
+    return files;
+  }
+
+  extractJobId(filename) {
+    if (filename.startsWith('result_')) {
+      return filename.split('_')[1];
+    }
+    return 'sync_' + filename.split('_')[1];
+  }
+
+  extractPageNumber(filename) {
+    const parts = filename.split('_');
+    const pageWithExt = parts[parts.length - 1];
+    return parseInt(pageWithExt.split('.')[0]);
+  }
+
+  async downloadFile(url, outputPath) {
+    const response = await fetch(`http://localhost:3000${url}`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await fs.promises.writeFile(outputPath, buffer);
+  }
+}
+
+// Usage
+const organizer = new FileOrganizer();
+const organized = await organizer.organizeByJob(previewUrls);
+
+for (const [jobId, files] of organized) {
+  console.log(`Job ${jobId}: ${files.length} files`);
+  files.forEach(f => console.log(`  - Page ${f.pageNumber}: ${f.localPath}`));
+}
+```
+
+</CodeGroup>
+
+### Cleanup and Maintenance
+
+<CodeGroup>
+
+```bash {{ title: 'Cleanup Script' }}
+#!/bin/bash
+# cleanup-downloads.sh
+
+DOWNLOAD_DIR="./downloads"
+DAYS_TO_KEEP=7
+
+echo "Cleaning up downloads older than $DAYS_TO_KEEP days..."
+
+# Remove old files
+find "$DOWNLOAD_DIR" -type f -mtime +$DAYS_TO_KEEP -delete
+
+# Remove empty directories
+find "$DOWNLOAD_DIR" -type d -empty -delete
+
+# Display disk usage
+echo "Current disk usage:"
+du -sh "$DOWNLOAD_DIR"
+
+# Count remaining files
+file_count=$(find "$DOWNLOAD_DIR" -type f | wc -l)
+echo "Files remaining: $file_count"
+```
+
+```javascript {{ title: 'Automated Cleanup' }}
+const fs = require('fs');
+const path = require('path');
+
+class DownloadManager {
+  constructor(downloadDir = './downloads/', maxAge = 7 * 24 * 60 * 60 * 1000) {
+    this.downloadDir = downloadDir;
+    this.maxAge = maxAge; // 7 days in milliseconds
+  }
+
+  async cleanupOldFiles() {
+    const now = Date.now();
+    let removedFiles = 0;
+    let removedSize = 0;
+
+    const cleanupDirectory = async (dir) => {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          await cleanupDirectory(fullPath);
+
+          // Remove empty directories
+          try {
+            await fs.promises.rmdir(fullPath);
+          } catch (e) {
+            // Directory not empty, ignore
+          }
+        } else {
+          const stats = await fs.promises.stat(fullPath);
+          const age = now - stats.mtime.getTime();
+
+          if (age > this.maxAge) {
+            removedSize += stats.size;
+            await fs.promises.unlink(fullPath);
+            removedFiles++;
+          }
+        }
+      }
+    };
+
+    if (fs.existsSync(this.downloadDir)) {
+      await cleanupDirectory(this.downloadDir);
+    }
+
+    console.log(`Cleanup completed: removed ${removedFiles} files (${this.formatBytes(removedSize)})`);
+
+    return { removedFiles, removedSize };
+  }
+
+  async getStorageInfo() {
+    let totalFiles = 0;
+    let totalSize = 0;
+
+    const scanDirectory = async (dir) => {
+      if (!fs.existsSync(dir)) return;
+
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          await scanDirectory(fullPath);
+        } else {
+          const stats = await fs.promises.stat(fullPath);
+          totalFiles++;
+          totalSize += stats.size;
+        }
+      }
+    };
+
+    await scanDirectory(this.downloadDir);
+
+    return {
+      totalFiles,
+      totalSize: this.formatBytes(totalSize),
+      directory: this.downloadDir
+    };
+  }
+
+  formatBytes(bytes) {
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 Bytes';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  }
+}
+
+// Usage
+const manager = new DownloadManager();
+
+// Check current storage
+const storage = await manager.getStorageInfo();
+console.log(`Current storage: ${storage.totalFiles} files, ${storage.totalSize}`);
+
+// Cleanup old files
+await manager.cleanupOldFiles();
+```
+
+</CodeGroup>
+
+### Verification and Integrity
+
+<CodeGroup>
+
+```javascript {{ title: 'File Verification' }}
+const crypto = require('crypto');
+
+class FileVerifier {
+  async verifyDownload(downloadUrl, localPath) {
+    try {
+      // Download file again for comparison
+      const response = await fetch(`http://localhost:3000${downloadUrl}`);
+      const remoteBuffer = Buffer.from(await response.arrayBuffer());
+
+      // Read local file
+      const localBuffer = await fs.promises.readFile(localPath);
+
+      // Compare checksums
+      const remoteHash = crypto.createHash('md5').update(remoteBuffer).digest('hex');
+      const localHash = crypto.createHash('md5').update(localBuffer).digest('hex');
+
+      return {
+        valid: remoteHash === localHash,
+        remoteHash,
+        localHash,
+        size: localBuffer.length
+      };
+
+    } catch (error) {
+      return {
+        valid: false,
+        error: error.message
+      };
+    }
+  }
+
+  async verifyAllDownloads(downloads) {
+    const results = [];
+
+    for (const { url, path } of downloads) {
+      console.log(`Verifying: ${path}`);
+      const result = await this.verifyDownload(url, path);
+
+      results.push({
+        path,
+        url,
+        ...result
+      });
+
+      if (result.valid) {
+        console.log(`✓ Valid: ${path}`);
+      } else {
+        console.log(`✗ Invalid: ${path} - ${result.error || 'Checksum mismatch'}`);
+      }
+    }
+
+    const validCount = results.filter(r => r.valid).length;
+    console.log(`\nVerification complete: ${validCount}/${results.length} files valid`);
+
+    return results;
+  }
+}
+
+// Usage
+const verifier = new FileVerifier();
+const downloads = [
+  { url: '/download/sync_1641312000_12345_abc1_1.jpg', path: './downloads/page1.jpg' },
+  { url: '/download/sync_1641312000_12345_abc1_2.jpg', path: './downloads/page2.jpg' }
+];
+
+const verificationResults = await verifier.verifyAllDownloads(downloads);
+```
+
+</CodeGroup>

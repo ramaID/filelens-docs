@@ -1,0 +1,887 @@
+export const metadata = {
+  title: 'Docker Deployment',
+  description:
+    'Deploy FileLens using Docker containers for production use with comprehensive setup and configuration guides.',
+}
+
+export const sections = [
+  { title: 'Quick Start', id: 'quick-start' },
+  { title: 'Production Setup', id: 'production-setup' },
+  { title: 'Configuration', id: 'configuration' },
+  { title: 'Scaling', id: 'scaling' },
+  { title: 'Monitoring', id: 'monitoring' },
+]
+
+# Docker Deployment
+
+FileLens is designed to run efficiently in containerized environments. This guide covers everything you need to deploy FileLens using Docker, from quick development setups to production-ready configurations with scaling and monitoring. {{ className: 'lead' }}
+
+---
+
+## Quick Start {{ anchor: false }}
+
+### Using Docker Compose
+
+The fastest way to get FileLens running is with Docker Compose:
+
+<CodeGroup>
+
+```yaml {{ title: 'docker-compose.yml' }}
+version: '3.8'
+
+services:
+  filelens:
+    image: filelens:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - LOG_LEVEL=info
+    volumes:
+      - ./temp:/tmp/filelens
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+```bash {{ title: 'Start Services' }}
+# Clone the repository
+git clone https://github.com/your-org/filelens.git
+cd filelens
+
+# Build and start
+docker-compose up --build
+
+# Run in background
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f filelens
+```
+
+```bash {{ title: 'Basic Testing' }}
+# Test health endpoint
+curl http://localhost:3000/health
+
+# Test preview generation
+curl -X POST http://localhost:3000/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/sample.pdf",
+    "output_format": "jpg",
+    "options": {
+      "width": 800,
+      "height": 600
+    }
+  }'
+```
+
+</CodeGroup>
+
+### Single Container
+
+For simple deployments, you can run FileLens as a single container:
+
+```bash
+# Pull the image
+docker pull filelens:latest
+
+# Run the container
+docker run -d \
+  --name filelens \
+  -p 3000:3000 \
+  -v $(pwd)/temp:/tmp/filelens \
+  -e LOG_LEVEL=info \
+  --restart unless-stopped \
+  filelens:latest
+
+# Check logs
+docker logs -f filelens
+```
+
+---
+
+## Production Setup {{ anchor: false }}
+
+### Multi-Container Architecture
+
+For production environments, use a more robust setup with load balancing and monitoring:
+
+<CodeGroup>
+
+```yaml {{ title: 'docker-compose.prod.yml' }}
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - filelens
+    restart: unless-stopped
+
+  filelens:
+    image: filelens:latest
+    deploy:
+      replicas: 3
+    environment:
+      - PORT=3000
+      - LOG_LEVEL=warn
+      - MAX_WORKERS=4
+      - TEMP_DIR=/tmp/filelens
+    volumes:
+      - filelens_temp:/tmp/filelens
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  filelens_temp:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+```
+
+```nginx {{ title: 'nginx.conf' }}
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream filelens {
+        server filelens:3000;
+    }
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+
+    server {
+        listen 80;
+        server_name your-domain.com;
+
+        # Redirect to HTTPS
+        return 301 https://$server_name$request_uri;
+    }
+
+    server {
+        listen 443 ssl http2;
+        server_name your-domain.com;
+
+        ssl_certificate /etc/nginx/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx/ssl/key.pem;
+
+        client_max_body_size 100M;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+
+        location / {
+            limit_req zone=api burst=20 nodelay;
+
+            proxy_pass http://filelens;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /health {
+            proxy_pass http://filelens;
+            access_log off;
+        }
+
+        location /metrics {
+            proxy_pass http://filelens;
+            allow 172.16.0.0/12;  # Docker networks
+            deny all;
+        }
+    }
+}
+```
+
+```yaml {{ title: 'prometheus.yml' }}
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'filelens'
+    static_configs:
+      - targets: ['filelens:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:9113']
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+```
+
+</CodeGroup>
+
+### Kubernetes Deployment
+
+For Kubernetes environments:
+
+<CodeGroup>
+
+```yaml {{ title: 'deployment.yaml' }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filelens
+  labels:
+    app: filelens
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: filelens
+  template:
+    metadata:
+      labels:
+        app: filelens
+    spec:
+      containers:
+      - name: filelens
+        image: filelens:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          value: "3000"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: MAX_WORKERS
+          value: "4"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - name: temp-storage
+          mountPath: /tmp/filelens
+      volumes:
+      - name: temp-storage
+        emptyDir:
+          sizeLimit: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: filelens-service
+spec:
+  selector:
+    app: filelens
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: filelens-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+spec:
+  rules:
+  - host: filelens.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: filelens-service
+            port:
+              number: 80
+```
+
+```yaml {{ title: 'hpa.yaml' }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: filelens-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: filelens
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+</CodeGroup>
+
+---
+
+## Configuration {{ anchor: false }}
+
+### Environment Variables
+
+Configure FileLens using environment variables:
+
+<Properties>
+  <Property name="PORT" type="integer">
+    Port number for the server (default: 3000)
+  </Property>
+  <Property name="LOG_LEVEL" type="string">
+    Logging level: debug, info, warn, error (default: info)
+  </Property>
+  <Property name="MAX_WORKERS" type="integer">
+    Maximum number of worker processes (default: CPU cores)
+  </Property>
+  <Property name="TEMP_DIR" type="string">
+    Directory for temporary files (default: /tmp/filelens)
+  </Property>
+  <Property name="MAX_FILE_SIZE" type="string">
+    Maximum file size for processing (default: 100MB)
+  </Property>
+  <Property name="REQUEST_TIMEOUT" type="integer">
+    Request timeout in seconds (default: 300)
+  </Property>
+</Properties>
+
+### Volume Mounts
+
+Important directories to mount:
+
+<CodeGroup>
+
+```yaml {{ title: 'Development Volumes' }}
+volumes:
+  # Temporary files (required)
+  - ./temp:/tmp/filelens
+
+  # Configuration files (optional)
+  - ./config:/app/config:ro
+
+  # Logs (optional)
+  - ./logs:/app/logs
+```
+
+```yaml {{ title: 'Production Volumes' }}
+volumes:
+  # Named volume for temp files
+  - filelens_temp:/tmp/filelens
+
+  # Read-only config
+  - type: bind
+    source: ./config
+    target: /app/config
+    read_only: true
+
+  # Log aggregation
+  - type: bind
+    source: /var/log/filelens
+    target: /app/logs
+```
+
+</CodeGroup>
+
+### Resource Limits
+
+Set appropriate resource limits based on your workload:
+
+<CodeGroup>
+
+```yaml {{ title: 'Light Workload' }}
+deploy:
+  resources:
+    limits:
+      cpus: '1.0'
+      memory: 1G
+    reservations:
+      cpus: '0.25'
+      memory: 256M
+```
+
+```yaml {{ title: 'Heavy Workload' }}
+deploy:
+  resources:
+    limits:
+      cpus: '4.0'
+      memory: 8G
+    reservations:
+      cpus: '1.0'
+      memory: 2G
+```
+
+</CodeGroup>
+
+---
+
+## Scaling {{ anchor: false }}
+
+### Horizontal Scaling
+
+Scale FileLens horizontally by running multiple instances:
+
+<CodeGroup>
+
+```bash {{ title: 'Docker Compose Scaling' }}
+# Scale to 5 instances
+docker-compose up --scale filelens=5
+
+# Check running containers
+docker-compose ps
+
+# Monitor resource usage
+docker stats
+```
+
+```yaml {{ title: 'Load Balancer Config' }}
+# Add to docker-compose.yml
+services:
+  haproxy:
+    image: haproxy:alpine
+    ports:
+      - "80:80"
+      - "8404:8404"  # Stats page
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - filelens
+
+  filelens:
+    deploy:
+      replicas: 3
+    # Remove port mapping since HAProxy will handle it
+```
+
+``` {{ title: 'haproxy.cfg' }}
+global
+    daemon
+    maxconn 4096
+
+defaults
+    mode http
+    timeout connect 5s
+    timeout client 30s
+    timeout server 300s
+    option httplog
+
+frontend filelens_frontend
+    bind *:80
+    default_backend filelens_backend
+
+backend filelens_backend
+    balance roundrobin
+    option httpchk GET /health
+    server filelens1 filelens:3000 check
+    server filelens2 filelens:3000 check
+    server filelens3 filelens:3000 check
+
+listen stats
+    bind *:8404
+    stats enable
+    stats uri /stats
+    stats refresh 30s
+```
+
+</CodeGroup>
+
+### Auto-scaling
+
+Implement auto-scaling based on metrics:
+
+<CodeGroup>
+
+```bash {{ title: 'Docker Swarm Auto-scaling' }}
+# Initialize swarm
+docker swarm init
+
+# Deploy stack
+docker stack deploy -c docker-compose.yml filelens
+
+# Update service with auto-scaling
+docker service update --replicas-max-per-node 2 filelens_filelens
+
+# Monitor services
+docker service ls
+docker service ps filelens_filelens
+```
+
+```python {{ title: 'Custom Scaling Script' }}
+#!/usr/bin/env python3
+import docker
+import time
+import requests
+
+def get_cpu_usage():
+    """Get average CPU usage of FileLens containers"""
+    client = docker.from_env()
+    containers = client.containers.list(filters={"label": "com.docker.compose.service=filelens"})
+
+    total_cpu = 0
+    for container in containers:
+        stats = container.stats(stream=False)
+        cpu_percent = calculate_cpu_percent(stats)
+        total_cpu += cpu_percent
+
+    return total_cpu / len(containers) if containers else 0
+
+def scale_service(target_replicas):
+    """Scale the FileLens service"""
+    import subprocess
+    subprocess.run([
+        "docker-compose", "up", "--scale", f"filelens={target_replicas}", "-d"
+    ])
+
+def main():
+    while True:
+        cpu_usage = get_cpu_usage()
+        current_replicas = get_current_replicas()
+
+        if cpu_usage > 80 and current_replicas < 10:
+            scale_service(current_replicas + 1)
+            print(f"Scaled up to {current_replicas + 1} replicas (CPU: {cpu_usage}%)")
+        elif cpu_usage < 30 and current_replicas > 2:
+            scale_service(current_replicas - 1)
+            print(f"Scaled down to {current_replicas - 1} replicas (CPU: {cpu_usage}%)")
+
+        time.sleep(60)  # Check every minute
+
+if __name__ == "__main__":
+    main()
+```
+
+</CodeGroup>
+
+---
+
+## Monitoring {{ anchor: false }}
+
+### Health Checks
+
+Implement comprehensive health monitoring:
+
+<CodeGroup>
+
+```yaml {{ title: 'Advanced Health Checks' }}
+services:
+  filelens:
+    healthcheck:
+      test: |
+        curl -f http://localhost:3000/health &&
+        curl -f http://localhost:3000/metrics | grep -q "filelens_up 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+```bash {{ title: 'External Monitoring' }}
+#!/bin/bash
+# monitor.sh - External health check script
+
+FILELENS_URL="http://localhost:3000"
+SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+check_health() {
+    response=$(curl -s -w "%{http_code}" "$FILELENS_URL/health")
+    http_code=$(echo "$response" | tail -c 4)
+
+    if [ "$http_code" != "200" ]; then
+        send_alert "FileLens health check failed: HTTP $http_code"
+        return 1
+    fi
+
+    return 0
+}
+
+check_metrics() {
+    response=$(curl -s "$FILELENS_URL/metrics")
+    if ! echo "$response" | grep -q "filelens_up 1"; then
+        send_alert "FileLens metrics indicate service is down"
+        return 1
+    fi
+
+    return 0
+}
+
+send_alert() {
+    message="$1"
+    curl -X POST -H 'Content-type: application/json' \
+        --data "{\"text\":\"🚨 $message\"}" \
+        "$SLACK_WEBHOOK"
+}
+
+# Run checks
+if ! check_health || ! check_metrics; then
+    exit 1
+fi
+
+echo "All checks passed"
+```
+
+</CodeGroup>
+
+### Metrics and Logging
+
+Set up comprehensive monitoring:
+
+<CodeGroup>
+
+```yaml {{ title: 'Grafana Dashboard Config' }}
+# grafana-dashboard.json
+{
+  "dashboard": {
+    "title": "FileLens Monitoring",
+    "panels": [
+      {
+        "title": "Request Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(filelens_requests_total[5m])",
+            "legendFormat": "Requests/sec"
+          }
+        ]
+      },
+      {
+        "title": "Response Time",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, filelens_request_duration_seconds_bucket)",
+            "legendFormat": "95th percentile"
+          }
+        ]
+      },
+      {
+        "title": "Active Jobs",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "filelens_active_jobs",
+            "legendFormat": "Active jobs"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(filelens_errors_total[5m])",
+            "legendFormat": "Errors/sec"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+```yaml {{ title: 'Log Aggregation' }}
+# filebeat.yml
+filebeat.inputs:
+- type: container
+  paths:
+    - '/var/lib/docker/containers/*/*.log'
+  processors:
+    - add_docker_metadata:
+        host: "unix:///var/run/docker.sock"
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "filelens-logs-%{+yyyy.MM.dd}"
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+```
+
+</CodeGroup>
+
+### Alerting Rules
+
+Configure alerts for critical issues:
+
+<CodeGroup>
+
+```yaml {{ title: 'alert_rules.yml' }}
+groups:
+- name: filelens
+  rules:
+  - alert: FileLensDown
+    expr: up{job="filelens"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "FileLens instance is down"
+      description: "FileLens instance {{ $labels.instance }} has been down for more than 1 minute."
+
+  - alert: HighErrorRate
+    expr: rate(filelens_errors_total[5m]) > 0.1
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High error rate in FileLens"
+      description: "Error rate is {{ $value }} errors per second."
+
+  - alert: HighMemoryUsage
+    expr: (container_memory_usage_bytes{name=~".*filelens.*"} / container_spec_memory_limit_bytes) > 0.9
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage in FileLens"
+      description: "Memory usage is above 90% for {{ $labels.name }}."
+
+  - alert: LongProcessingTime
+    expr: histogram_quantile(0.95, filelens_request_duration_seconds_bucket) > 60
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Long processing times in FileLens"
+      description: "95th percentile processing time is {{ $value }} seconds."
+```
+
+</CodeGroup>
+
+### Backup and Recovery
+
+Implement backup strategies for persistent data:
+
+<CodeGroup>
+
+```bash {{ title: 'Backup Script' }}
+#!/bin/bash
+# backup.sh - Backup FileLens data
+
+BACKUP_DIR="/backups/filelens"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# Create backup directory
+mkdir -p "$BACKUP_DIR"
+
+# Backup configuration
+docker run --rm -v filelens_config:/data -v "$BACKUP_DIR":/backup alpine \
+    tar czf "/backup/config_$DATE.tar.gz" -C /data .
+
+# Backup persistent volumes
+docker run --rm -v filelens_temp:/data -v "$BACKUP_DIR":/backup alpine \
+    tar czf "/backup/temp_$DATE.tar.gz" -C /data .
+
+# Cleanup old backups (keep last 7 days)
+find "$BACKUP_DIR" -name "*.tar.gz" -mtime +7 -delete
+
+echo "Backup completed: $DATE"
+```
+
+```bash {{ title: 'Recovery Script' }}
+#!/bin/bash
+# restore.sh - Restore FileLens data
+
+BACKUP_FILE="$1"
+BACKUP_DIR="/backups/filelens"
+
+if [ -z "$BACKUP_FILE" ]; then
+    echo "Usage: $0 <backup_file>"
+    echo "Available backups:"
+    ls -la "$BACKUP_DIR"/*.tar.gz
+    exit 1
+fi
+
+# Stop services
+docker-compose down
+
+# Restore data
+docker run --rm -v filelens_config:/data -v "$BACKUP_DIR":/backup alpine \
+    tar xzf "/backup/$BACKUP_FILE" -C /data
+
+# Start services
+docker-compose up -d
+
+echo "Restore completed from: $BACKUP_FILE"
+```
+
+</CodeGroup>
