@@ -230,13 +230,11 @@ function NavigationGroup({
 
 export const navigation: Array<NavGroup> = [
   {
-    title: 'Guides',
+    title: 'Getting Started',
     links: [
       { title: 'Introduction', href: '/' },
       { title: 'Quickstart', href: '/quickstart' },
-      { title: 'Implementation', href: '/implementation' },
-      { title: 'Multi-Page Processing', href: '/multi-page' },
-      { title: 'Docker Deployment', href: '/docker' },
+      { title: 'Installation', href: '/docker' },
     ],
   },
   {
@@ -244,8 +242,15 @@ export const navigation: Array<NavGroup> = [
     links: [
       { title: 'API Endpoints', href: '/api' },
       { title: 'Preview Generation', href: '/preview' },
-      { title: 'File Downloads', href: '/downloads' },
-      { title: 'Job Status', href: '/status' },
+      { title: 'Multi-Page Processing', href: '/multi-page' },
+      { title: 'Status & Monitoring', href: '/status' },
+    ],
+  },
+  {
+    title: 'Implementation',
+    links: [
+      { title: 'Implementation Guide', href: '/implementation' },
+      { title: 'Examples', href: '/examples' },
     ],
   },
 ]

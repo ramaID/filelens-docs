@@ -28,11 +28,11 @@ interface Resource {
 
 const resources: Array<Resource> = [
   {
-    href: '/contacts',
-    name: 'Contacts',
+    href: '/api',
+    name: 'API Reference',
     description:
-      'Learn about the contact model and how to create, retrieve, update, delete, and list contacts.',
-    icon: UserIcon,
+      'Complete API documentation with endpoints, request/response formats, and examples.',
+    icon: EnvelopeIcon,
     pattern: {
       y: 16,
       squares: [
@@ -42,25 +42,11 @@ const resources: Array<Resource> = [
     },
   },
   {
-    href: '/conversations',
-    name: 'Conversations',
+    href: '/preview',
+    name: 'Preview Generation',
     description:
-      'Learn about the conversation model and how to create, retrieve, update, delete, and list conversations.',
+      'Learn how to generate file previews synchronously and asynchronously with detailed examples.',
     icon: ChatBubbleIcon,
-    pattern: {
-      y: -6,
-      squares: [
-        [-1, 2],
-        [1, 3],
-      ],
-    },
-  },
-  {
-    href: '/messages',
-    name: 'Messages',
-    description:
-      'Learn about the message model and how to create, retrieve, update, delete, and list messages.',
-    icon: EnvelopeIcon,
     pattern: {
       y: 32,
       squares: [
@@ -70,11 +56,11 @@ const resources: Array<Resource> = [
     },
   },
   {
-    href: '/groups',
-    name: 'Groups',
+    href: '/status',
+    name: 'Status & Monitoring',
     description:
-      'Learn about the group model and how to create, retrieve, update, delete, and list groups.',
-    icon: UsersIcon,
+      'Monitor service health, job processing status, and integrate with monitoring tools.',
+    icon: UserIcon,
     pattern: {
       y: 22,
       squares: [[0, 1]],

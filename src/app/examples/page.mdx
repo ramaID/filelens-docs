@@ -1,0 +1,653 @@
+export const metadata = {
+  title: 'Examples',
+  description: 'Complete examples and code samples for FileLens integration.',
+}
+
+export const sections = [
+  { title: 'Basic Examples', id: 'basic-examples' },
+  { title: 'Framework Integration', id: 'framework-integration' },
+  { title: 'Advanced Use Cases', id: 'advanced-use-cases' },
+  { title: 'Production Examples', id: 'production-examples' },
+]
+
+# Examples
+
+Complete examples and code samples for FileLens integration across different programming languages and frameworks. {{ className: 'lead' }}
+
+## Basic Examples {{ anchor: false }}
+
+### Simple Preview Generation
+
+<CodeGroup>
+
+```bash {{ title: 'cURL' }}
+curl -X POST http://localhost:3000/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/document.pdf",
+    "output_format": "jpg",
+    "options": {
+      "width": 800,
+      "height": 600
+    }
+  }'
+```
+
+```javascript {{ title: 'JavaScript' }}
+const response = await fetch('http://localhost:3000/preview', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    input: 'https://example.com/document.pdf',
+    output_format: 'jpg',
+    options: {
+      width: 800,
+      height: 600
+    }
+  })
+});
+
+const result = await response.json();
+console.log('Preview URLs:', result.preview_urls);
+```
+
+```python {{ title: 'Python' }}
+import requests
+
+response = requests.post('http://localhost:3000/preview', json={
+    'input': 'https://example.com/document.pdf',
+    'output_format': 'jpg',
+    'options': {
+        'width': 800,
+        'height': 600
+    }
+})
+
+result = response.json()
+print('Preview URLs:', result['preview_urls'])
+```
+
+```php {{ title: 'PHP' }}
+<?php
+$data = [
+    'input' => 'https://example.com/document.pdf',
+    'output_format' => 'jpg',
+    'options' => [
+        'width' => 800,
+        'height' => 600
+    ]
+];
+
+$ch = curl_init('http://localhost:3000/preview');
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+$result = json_decode($response, true);
+echo 'Preview URLs: ' . implode(', ', $result['preview_urls']);
+?>
+```
+
+</CodeGroup>
+
+### Async Processing
+
+<CodeGroup>
+
+```javascript {{ title: 'JavaScript' }}
+// Submit async job
+const jobResponse = await fetch('http://localhost:3000/preview/async', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    input: 'https://example.com/large-document.pdf',
+    output_format: 'jpg',
+    options: {
+      width: 1200,
+      height: 900,
+      all_pages: true
+    }
+  })
+});
+
+const job = await jobResponse.json();
+
+// Poll for completion
+const pollStatus = async (jobId) => {
+  while (true) {
+    const statusResponse = await fetch(`http://localhost:3000/status/${jobId}`);
+    const status = await statusResponse.json();
+
+    if (status.status === 'completed') {
+      return status.preview_urls;
+    } else if (status.status === 'failed') {
+      throw new Error(status.error);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+};
+
+const previewUrls = await pollStatus(job.job_id);
+console.log('Completed previews:', previewUrls);
+```
+
+```python {{ title: 'Python' }}
+import requests
+import time
+
+# Submit async job
+job_response = requests.post('http://localhost:3000/preview/async', json={
+    'input': 'https://example.com/large-document.pdf',
+    'output_format': 'jpg',
+    'options': {
+        'width': 1200,
+        'height': 900,
+        'all_pages': True
+    }
+})
+
+job = job_response.json()
+
+# Poll for completion
+def poll_status(job_id):
+    while True:
+        status_response = requests.get(f'http://localhost:3000/status/{job_id}')
+        status = status_response.json()
+
+        if status['status'] == 'completed':
+            return status['preview_urls']
+        elif status['status'] == 'failed':
+            raise Exception(status['error'])
+
+        time.sleep(2)
+
+preview_urls = poll_status(job['job_id'])
+print('Completed previews:', preview_urls)
+```
+
+</CodeGroup>
+
+---
+
+## Framework Integration {{ anchor: false }}
+
+### Express.js Integration
+
+```javascript
+const express = require('express');
+const { FileLensClient } = require('filelens-client');
+
+const app = express();
+const client = new FileLensClient('http://localhost:3000');
+
+app.use(express.json());
+
+// Sync preview endpoint
+app.post('/api/preview', async (req, res) => {
+  try {
+    const { url, options } = req.body;
+    const result = await client.generatePreview(url, options);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Async preview endpoint
+app.post('/api/preview/async', async (req, res) => {
+  try {
+    const { url, options } = req.body;
+    const job = await client.generatePreviewAsync(url, options);
+    res.json(job);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Status check endpoint
+app.get('/api/status/:jobId', async (req, res) => {
+  try {
+    const status = await client.checkStatus(req.params.jobId);
+    res.json(status);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.listen(3001, () => {
+  console.log('Server running on port 3001');
+});
+```
+
+### Django Integration
+
+```python
+# views.py
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from filelens_client import FileLensClient
+import json
+
+client = FileLensClient('http://localhost:3000')
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_preview(request):
+    try:
+        data = json.loads(request.body)
+        result = client.generate_preview(
+            data['url'],
+            width=data.get('width', 800),
+            height=data.get('height', 600),
+            format=data.get('format', 'jpg')
+        )
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_preview_async(request):
+    try:
+        data = json.loads(request.body)
+        job = client.generate_preview_async(
+            data['url'],
+            width=data.get('width', 800),
+            height=data.get('height', 600),
+            format=data.get('format', 'jpg')
+        )
+        return JsonResponse(job)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@require_http_methods(["GET"])
+def check_status(request, job_id):
+    try:
+        status = client.check_status(job_id)
+        return JsonResponse(status)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+```
+
+### Laravel Integration
+
+```php
+<?php
+// app/Http/Controllers/PreviewController.php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Services\FileLensClient;
+
+class PreviewController extends Controller
+{
+    private $client;
+
+    public function __construct()
+    {
+        $this->client = new FileLensClient(config('services.filelens.base_url'));
+    }
+
+    public function generate(Request $request)
+    {
+        $request->validate([
+            'url' => 'required|url',
+            'format' => 'sometimes|in:jpg,png,webp,gif',
+            'width' => 'sometimes|integer|min:100|max:2000',
+            'height' => 'sometimes|integer|min:100|max:2000',
+        ]);
+
+        try {
+            $result = $this->client->generatePreview(
+                $request->input('url'),
+                [
+                    'width' => $request->input('width', 800),
+                    'height' => $request->input('height', 600),
+                    'format' => $request->input('format', 'jpg'),
+                    'all_pages' => $request->input('all_pages', true)
+                ]
+            );
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function generateAsync(Request $request)
+    {
+        $request->validate([
+            'url' => 'required|url',
+            'format' => 'sometimes|in:jpg,png,webp,gif',
+            'width' => 'sometimes|integer|min:100|max:2000',
+            'height' => 'sometimes|integer|min:100|max:2000',
+        ]);
+
+        try {
+            $job = $this->client->generatePreviewAsync(
+                $request->input('url'),
+                [
+                    'width' => $request->input('width', 800),
+                    'height' => $request->input('height', 600),
+                    'format' => $request->input('format', 'jpg'),
+                    'all_pages' => $request->input('all_pages', true)
+                ]
+            );
+
+            return response()->json($job);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function status($jobId)
+    {
+        try {
+            $status = $this->client->checkStatus($jobId);
+            return response()->json($status);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+    }
+}
+```
+
+---
+
+## Advanced Use Cases {{ anchor: false }}
+
+### Batch Processing
+
+```javascript
+// Process multiple documents
+const processDocuments = async (urls) => {
+  const results = await Promise.all(
+    urls.map(url => client.generatePreview(url, {
+      width: 800,
+      height: 600,
+      format: 'jpg'
+    }))
+  );
+
+  return results.flatMap(result => result.preview_urls);
+};
+
+// Usage
+const urls = [
+  'https://example.com/doc1.pdf',
+  'https://example.com/doc2.pptx',
+  'https://example.com/doc3.docx'
+];
+
+const allPreviews = await processDocuments(urls);
+console.log('All previews:', allPreviews);
+```
+
+### File Upload and Preview
+
+```javascript
+// Express.js with multer
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+
+app.post('/upload-and-preview', upload.single('file'), async (req, res) => {
+  try {
+    const filePath = req.file.path;
+    const result = await client.generatePreview(`file://${filePath}`, {
+      width: 800,
+      height: 600,
+      format: 'jpg'
+    });
+
+    // Clean up uploaded file
+    fs.unlinkSync(filePath);
+
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+```
+
+### Preview Gallery
+
+```javascript
+// React component for preview gallery
+import React, { useState, useEffect } from 'react';
+import { FileLensClient } from 'filelens-client';
+
+const PreviewGallery = ({ documents }) => {
+  const [previews, setPreviews] = useState({});
+  const [loading, setLoading] = useState(false);
+  const client = new FileLensClient('http://localhost:3000');
+
+  useEffect(() => {
+    const generatePreviews = async () => {
+      setLoading(true);
+      const previewPromises = documents.map(async (doc) => {
+        try {
+          const result = await client.generatePreview(doc.url, {
+            width: 400,
+            height: 300,
+            format: 'jpg',
+            allPages: false // Only first page for gallery
+          });
+          return { id: doc.id, previews: result.preview_urls };
+        } catch (error) {
+          return { id: doc.id, error: error.message };
+        }
+      });
+
+      const results = await Promise.all(previewPromises);
+      const previewMap = {};
+      results.forEach(result => {
+        previewMap[result.id] = result;
+      });
+      setPreviews(previewMap);
+      setLoading(false);
+    };
+
+    generatePreviews();
+  }, [documents]);
+
+  if (loading) return <div>Generating previews...</div>;
+
+  return (
+    <div className="preview-gallery">
+      {documents.map(doc => (
+        <div key={doc.id} className="preview-item">
+          <h3>{doc.title}</h3>
+          {previews[doc.id]?.previews ? (
+            <img
+              src={`http://localhost:3000${previews[doc.id].previews[0]}`}
+              alt={doc.title}
+              className="preview-image"
+            />
+          ) : previews[doc.id]?.error ? (
+            <div className="error">Error: {previews[doc.id].error}</div>
+          ) : (
+            <div className="loading">Loading...</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+---
+
+## Production Examples {{ anchor: false }}
+
+### Error Handling and Retry Logic
+
+```javascript
+class FileLensService {
+  constructor(baseUrl, options = {}) {
+    this.baseUrl = baseUrl;
+    this.maxRetries = options.maxRetries || 3;
+    this.retryDelay = options.retryDelay || 1000;
+  }
+
+  async generatePreviewWithRetry(url, options) {
+    let lastError;
+
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        const response = await fetch(`${this.baseUrl}/preview`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            input: url,
+            output_format: options.format || 'jpg',
+            options: {
+              width: options.width || 800,
+              height: options.height || 600,
+              all_pages: options.allPages !== false
+            }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+
+        if (attempt < this.maxRetries) {
+          await new Promise(resolve =>
+            setTimeout(resolve, this.retryDelay * attempt)
+          );
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  async generatePreviewSafe(url, options) {
+    try {
+      return await this.generatePreviewWithRetry(url, options);
+    } catch (error) {
+      console.error('Preview generation failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        preview_urls: []
+      };
+    }
+  }
+}
+```
+
+### Monitoring and Logging
+
+```javascript
+// Production monitoring example
+class FileLensMonitor {
+  constructor(client) {
+    this.client = client;
+    this.metrics = {
+      requests: 0,
+      successes: 0,
+      failures: 0,
+      totalProcessingTime: 0
+    };
+  }
+
+  async generatePreview(url, options) {
+    const startTime = Date.now();
+    this.metrics.requests++;
+
+    try {
+      const result = await this.client.generatePreview(url, options);
+      this.metrics.successes++;
+      this.metrics.totalProcessingTime += Date.now() - startTime;
+
+      console.log('Preview generated:', {
+        url,
+        pages: result.total_pages,
+        processingTime: Date.now() - startTime,
+        timestamp: new Date().toISOString()
+      });
+
+      return result;
+    } catch (error) {
+      this.metrics.failures++;
+
+      console.error('Preview generation failed:', {
+        url,
+        error: error.message,
+        processingTime: Date.now() - startTime,
+        timestamp: new Date().toISOString()
+      });
+
+      throw error;
+    }
+  }
+
+  getMetrics() {
+    return {
+      ...this.metrics,
+      successRate: this.metrics.successes / this.metrics.requests,
+      averageProcessingTime: this.metrics.totalProcessingTime / this.metrics.successes || 0
+    };
+  }
+}
+```
+
+### Caching Implementation
+
+```javascript
+// Redis-based caching
+const Redis = require('redis');
+
+class CachedFileLensClient {
+  constructor(baseUrl, redisOptions = {}) {
+    this.client = new FileLensClient(baseUrl);
+    this.redis = Redis.createClient(redisOptions);
+    this.cacheExpiry = 3600; // 1 hour
+  }
+
+  async generatePreview(url, options) {
+    const cacheKey = `preview:${url}:${JSON.stringify(options)}`;
+
+    // Check cache first
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // Generate preview
+    const result = await this.client.generatePreview(url, options);
+
+    // Cache result
+    await this.redis.setex(cacheKey, this.cacheExpiry, JSON.stringify(result));
+
+    return result;
+  }
+
+  async invalidateCache(url) {
+    const pattern = `preview:${url}:*`;
+    const keys = await this.redis.keys(pattern);
+
+    if (keys.length > 0) {
+      await this.redis.del(...keys);
+    }
+  }
+}
+```
+
+These examples demonstrate various integration patterns and production-ready implementations. Choose the examples that best fit your use case and modify them according to your requirements.

@@ -1,0 +1,664 @@
+export const metadata = {
+  title: 'Client SDKs',
+  description: 'Download and integrate FileLens client libraries for your programming language.',
+}
+
+export const sections = [
+  { title: 'Overview', id: 'overview' },
+  { title: 'JavaScript/Node.js', id: 'javascript-nodejs' },
+  { title: 'Python', id: 'python' },
+  { title: 'PHP', id: 'php' },
+  { title: 'Metadata Extraction', id: 'metadata-extraction' },
+  { title: 'React Components', id: 'react-components' },
+  { title: 'Vue Components', id: 'vue-components' },
+  { title: 'Installation', id: 'installation' },
+  { title: 'Examples', id: 'examples' },
+]
+
+# Client SDKs
+
+FileLens provides client libraries for popular programming languages to make integration quick and easy. Each SDK includes comprehensive documentation, examples, and framework-specific integrations. {{ className: 'lead' }}
+
+## Overview {{ anchor: false }}
+
+All FileLens client SDKs provide:
+
+- **Synchronous and asynchronous** preview generation
+- **Built-in error handling** with retry logic
+- **Type-safe interfaces** (where applicable)
+- **Framework integrations** for popular web frameworks
+- **Metadata extraction** from images without preview generation
+- **Comprehensive documentation** and examples
+
+---
+
+## JavaScript/Node.js SDK {{ anchor: false }}
+
+The JavaScript SDK works in both Node.js and browser environments with TypeScript support.
+
+### Installation
+
+```bash
+# Via npm (when available)
+npm install filelens-client
+
+# Or copy the client files
+cp docs/clients/javascript/filelens-client.js ./src/
+cp docs/clients/javascript/filelens-client.d.ts ./src/
+```
+
+### Quick Start
+
+```javascript
+import { FileLensClient } from 'filelens-client';
+
+const client = new FileLensClient('http://localhost:3000');
+
+// Generate preview
+const result = await client.generatePreview(
+  'https://example.com/document.pdf',
+  {
+    width: 800,
+    height: 600,
+    format: 'jpg',
+  }
+);
+
+console.log('Generated previews:', result.preview_urls);
+```
+
+### Advanced Usage
+
+```javascript
+// Async processing with polling
+const job = await client.generatePreviewAsync(
+  'https://example.com/large-document.pdf',
+  { format: 'png', width: 1200, height: 900 }
+);
+
+// Wait for completion
+const result = await client.waitForCompletion(job.job_id);
+console.log('Completed:', result.preview_urls);
+
+// Extract metadata from images
+const metadata = await client.extractMetadata(
+  'https://example.com/image.jpg'
+);
+console.log('Image metadata:', metadata);
+
+// Extract metadata asynchronously
+const metadataJob = await client.extractMetadataAsync(
+  'https://example.com/large-image.jpg'
+);
+const metadataResult = await client.waitForCompletion(metadataJob.job_id);
+console.log('Image metadata:', metadataResult.metadata);
+```
+
+### Features
+
+- **Promise-based API** for async/await support
+- **Automatic retries** with exponential backoff
+- **Request queuing** for high-volume applications
+- **TypeScript definitions** included
+- **Browser and Node.js** compatible
+- **Metadata extraction** from images without preview generation
+
+---
+
+## Python SDK {{ anchor: false }}
+
+The Python SDK provides a clean, Pythonic interface with support for Django, Flask, and FastAPI.
+
+### Installation
+
+```bash
+# Via pip (when available)
+pip install filelens-client
+
+# Or copy the client files
+cp docs/clients/python/filelens_client.py ./src/
+```
+
+### Quick Start
+
+```python
+from filelens_client import FileLensClient
+
+client = FileLensClient('http://localhost:3000')
+
+# Generate preview
+result = client.generate_preview(
+    'https://example.com/document.pdf',
+    width=800,
+    height=600,
+    format='jpg'
+)
+
+print('Generated previews:', result['preview_urls'])
+
+# Extract metadata from images
+metadata = client.extract_metadata('https://example.com/image.jpg')
+print('Image metadata:', metadata['metadata'])
+```
+
+### Framework Integration
+
+```python
+# Django integration
+from django.http import JsonResponse
+from filelens_client import FileLensClient
+
+def generate_preview(request):
+    client = FileLensClient('http://localhost:3000')
+    result = client.generate_preview(
+        request.POST.get('url'),
+        width=int(request.POST.get('width', 800)),
+        height=int(request.POST.get('height', 600)),
+        format=request.POST.get('format', 'jpg')
+    )
+    return JsonResponse(result)
+```
+
+### Features
+
+- **Pythonic API** with type hints
+- **Context managers** for resource management
+- **Django/Flask/FastAPI** integration examples
+- **Async support** with asyncio
+- **Comprehensive error handling**
+- **Metadata extraction** from images
+
+---
+
+## PHP SDK {{ anchor: false }}
+
+The PHP SDK provides a simple, object-oriented interface with support for Laravel, Symfony, and other frameworks.
+
+### Installation
+
+```bash
+# Via Composer (when available)
+composer require filelens/client
+
+# Or copy the client files
+cp docs/clients/php/FileLensClient.php ./src/
+```
+
+### Quick Start
+
+```php
+<?php
+require_once 'FileLensClient.php';
+
+$client = new FileLensClient('http://localhost:3000');
+
+// Generate preview
+$result = $client->generatePreview(
+    'https://example.com/document.pdf',
+    [
+        'width' => 800,
+        'height' => 600,
+        'format' => 'jpg'
+    ]
+);
+
+echo 'Generated previews: ' . implode(', ', $result['preview_urls']);
+
+// Extract metadata from images
+$metadata = $client->extractMetadata('https://example.com/image.jpg');
+echo 'Image metadata: ' . json_encode($metadata['metadata']);
+```
+
+### Laravel Integration
+
+```php
+<?php
+// config/services.php
+'filelens' => [
+    'base_url' => env('FILELENS_BASE_URL', 'http://localhost:3000'),
+],
+
+// app/Services/FileLensService.php
+class FileLensService
+{
+    private $client;
+
+    public function __construct()
+    {
+        $this->client = new FileLensClient(config('services.filelens.base_url'));
+    }
+
+    public function generatePreview($url, $options = [])
+    {
+        return $this->client->generatePreview($url, $options);
+    }
+}
+```
+
+### Features
+
+- **PSR-4 autoloading** compatible
+- **Laravel/Symfony** integration examples
+- **Guzzle HTTP client** for reliability
+- **Comprehensive error handling**
+- **PHP 7.4+** support
+- **Metadata extraction** from images
+
+---
+
+## React Components {{ anchor: false }}
+
+Pre-built React components and hooks for quick integration.
+
+### Installation
+
+```bash
+# Copy React components
+cp -r docs/clients/javascript/react/ ./src/components/filelens/
+```
+
+### Components
+
+```jsx
+import { DocumentPreview, PreviewGallery } from './components/filelens';
+
+function App() {
+  return (
+    <div>
+      {/* Single document preview */}
+      <DocumentPreview
+        url="https://example.com/document.pdf"
+        width={800}
+        height={600}
+        format="jpg"
+      />
+
+      {/* Multiple document gallery */}
+      <PreviewGallery
+        documents={[
+          { url: 'doc1.pdf', title: 'Document 1' },
+          { url: 'doc2.pptx', title: 'Presentation' }
+        ]}
+      />
+    </div>
+  );
+}
+```
+
+### Custom Hook
+
+```jsx
+import { useFileLens } from './hooks/useFileLens';
+
+function MyComponent() {
+  const { generatePreview, loading, error } = useFileLens();
+
+  const handlePreview = async (url) => {
+    try {
+      const result = await generatePreview(url, {
+        width: 800,
+        height: 600,
+        format: 'jpg'
+      });
+      console.log('Previews:', result.preview_urls);
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={() => handlePreview('document.pdf')}>
+        Generate Preview
+      </button>
+      {loading && <div>Loading...</div>}
+      {error && <div>Error: {error}</div>}
+    </div>
+  );
+}
+```
+
+### Features
+
+- **Ready-to-use components** for common use cases
+- **Custom hooks** for flexibility
+- **TypeScript support** included
+- **Responsive design** with Tailwind CSS
+- **Accessibility features** built-in
+
+---
+
+## Vue Components {{ anchor: false }}
+
+Vue 3 components and composables for seamless integration.
+
+### Installation
+
+```bash
+# Copy Vue components
+cp -r docs/clients/javascript/vue/ ./src/components/filelens/
+```
+
+### Components
+
+```vue
+<template>
+  <div>
+    <!-- Single document preview -->
+    <DocumentPreview
+      :url="documentUrl"
+      :width="800"
+      :height="600"
+      format="jpg"
+    />
+
+    <!-- Preview gallery -->
+    <PreviewGallery :documents="documents" />
+  </div>
+</template>
+
+<script setup>
+import { DocumentPreview, PreviewGallery } from './components/filelens';
+
+const documentUrl = 'https://example.com/document.pdf';
+const documents = [
+  { url: 'doc1.pdf', title: 'Document 1' },
+  { url: 'doc2.pptx', title: 'Presentation' }
+];
+</script>
+```
+
+### Composable
+
+```vue
+<script setup>
+import { useFileLens } from './composables/useFileLens';
+
+const { generatePreview, loading, error } = useFileLens();
+
+const handlePreview = async (url) => {
+  try {
+    const result = await generatePreview(url, {
+      width: 800,
+      height: 600,
+      format: 'jpg'
+    });
+    console.log('Previews:', result.preview_urls);
+  } catch (err) {
+    console.error('Error:', err);
+  }
+};
+</script>
+```
+
+### Features
+
+- **Vue 3 Composition API** support
+- **Reactive data binding** for real-time updates
+- **TypeScript support** included
+- **Scoped slots** for customization
+- **Pinia integration** for state management
+
+---
+
+## Installation Guide {{ anchor: false }}
+
+Detailed installation instructions for each SDK.
+
+### Package Managers
+
+```bash
+# NPM
+npm install filelens-client
+
+# Yarn
+yarn add filelens-client
+
+# PNPM
+pnpm add filelens-client
+
+# Composer (PHP)
+composer require filelens/client
+
+# Pip (Python)
+pip install filelens-client
+```
+
+### Manual Installation
+
+```bash
+# Download client files
+wget https://github.com/filelens/clients/archive/main.zip
+unzip main.zip
+
+# Copy to your project
+cp -r clients/javascript/ ./src/filelens/
+cp -r clients/python/ ./src/filelens/
+cp -r clients/php/ ./src/filelens/
+```
+
+### CDN Usage
+
+```html
+<!-- JavaScript (for browser use) -->
+<script src="https://cdn.jsdelivr.net/npm/filelens-client@latest/dist/filelens-client.min.js"></script>
+
+<script>
+const client = new FileLensClient('http://localhost:3000');
+</script>
+```
+
+---
+
+## Examples {{ anchor: false }}
+
+Complete examples for common use cases.
+
+### File Upload with Preview
+
+```javascript
+// Express.js + FileLens
+const express = require('express');
+const multer = require('multer');
+const { FileLensClient } = require('filelens-client');
+
+const app = express();
+const upload = multer({ dest: 'uploads/' });
+const client = new FileLensClient('http://localhost:3000');
+
+app.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    const result = await client.generatePreview(
+      `file://${req.file.path}`,
+      { width: 800, height: 600, format: 'jpg' }
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+```
+
+### Bulk Processing
+
+```python
+# Python bulk processing
+import asyncio
+from filelens_client import FileLensClient
+
+async def process_documents(urls):
+    client = FileLensClient('http://localhost:3000')
+
+    tasks = [
+        client.generate_preview_async(url, format='jpg')
+        for url in urls
+    ]
+
+    results = await asyncio.gather(*tasks)
+    return results
+
+# Usage
+urls = ['doc1.pdf', 'doc2.pptx', 'doc3.docx']
+results = asyncio.run(process_documents(urls))
+```
+
+### Real-time Processing
+
+```javascript
+// WebSocket + FileLens for real-time updates
+const WebSocket = require('ws');
+const { FileLensClient } = require('filelens-client');
+
+const wss = new WebSocket.Server({ port: 8080 });
+const client = new FileLensClient('http://localhost:3000');
+
+wss.on('connection', (ws) => {
+  ws.on('message', async (data) => {
+    const { url, options } = JSON.parse(data);
+
+    try {
+      const job = await client.generatePreviewAsync(url, options);
+
+      // Poll for completion
+      const interval = setInterval(async () => {
+        const status = await client.checkStatus(job.job_id);
+
+        ws.send(JSON.stringify(status));
+
+        if (status.status === 'completed' || status.status === 'failed') {
+          clearInterval(interval);
+        }
+      }, 1000);
+    } catch (error) {
+      ws.send(JSON.stringify({ error: error.message }));
+    }
+  });
+});
+```
+
+### Download Links
+
+<div className="not-prose mt-6 flex gap-3">
+  <Button href="https://github.com/filelens/clients/archive/javascript.zip" variant="outline">
+    <>Download JavaScript SDK</>
+  </Button>
+  <Button href="https://github.com/filelens/clients/archive/python.zip" variant="outline">
+    <>Download Python SDK</>
+  </Button>
+  <Button href="https://github.com/filelens/clients/archive/php.zip" variant="outline">
+    <>Download PHP SDK</>
+  </Button>
+</div>
+
+Need help with integration? Check out our [Implementation Guide](/implementation) or [API Reference](/api) for detailed documentation.
+
+---
+
+## Metadata Extraction {{ anchor: false }}
+
+FileLens can extract metadata from image files without generating previews, which is useful for getting file information quickly.
+
+### JavaScript Metadata Extraction
+
+```javascript
+// Extract metadata synchronously
+const metadata = await client.extractMetadata('https://example.com/image.jpg');
+console.log('Image dimensions:', metadata.metadata.width, 'x', metadata.metadata.height);
+console.log('Camera info:', metadata.metadata.make, metadata.metadata.model);
+
+// Extract metadata asynchronously for large files
+const job = await client.extractMetadataAsync('https://example.com/large-image.jpg');
+const result = await client.waitForCompletion(job.job_id);
+console.log('Metadata:', result.metadata);
+```
+
+### Python Metadata Extraction
+
+```python
+# Extract metadata synchronously
+metadata = client.extract_metadata('https://example.com/image.jpg')
+print(f"Image dimensions: {metadata['metadata']['width']}x{metadata['metadata']['height']}")
+print(f"Camera: {metadata['metadata']['make']} {metadata['metadata']['model']}")
+
+# Extract metadata asynchronously
+job = client.extract_metadata_async('https://example.com/large-image.jpg')
+result = client.wait_for_completion(job['job_id'])
+print('Metadata:', result['metadata'])
+```
+
+### PHP Metadata Extraction
+
+```php
+<?php
+// Extract metadata synchronously
+$metadata = $client->extractMetadata('https://example.com/image.jpg');
+echo "Image dimensions: " . $metadata['metadata']['width'] . 'x' . $metadata['metadata']['height'];
+echo "Camera: " . $metadata['metadata']['make'] . ' ' . $metadata['metadata']['model'];
+
+// Extract metadata asynchronously
+$job = $client->extractMetadataAsync('https://example.com/large-image.jpg');
+$result = $client->waitForCompletion($job['job_id']);
+echo 'Metadata: ' . json_encode($result['metadata']);
+?>
+```
+
+### Metadata Response Format
+
+```json
+{
+  "success": true,
+  "message": "Metadata extracted successfully",
+  "metadata": {
+    "width": 3024,
+    "height": 4032,
+    "format": "jpeg",
+    "color_space": "*color.YCbCr",
+    "file_size": 2456789,
+    "make": "Apple",
+    "model": "iPhone 12 Pro",
+    "date_time": "2023:10:15 14:30:22",
+    "exposure_time": "1/120",
+    "f_number": "f/1.6",
+    "iso": "64",
+    "focal_length": "5.1mm",
+    "flash": "Flash did not fire",
+    "orientation": "Horizontal (normal)",
+    "gps": {
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "altitude": 10.5
+    }
+  }
+}
+```
+
+### Metadata Extraction Example
+
+```javascript
+// Extract image metadata for file organization
+const processImageMetadata = async (imageUrl) => {
+  try {
+    const result = await client.extractMetadata(imageUrl);
+    const metadata = result.metadata;
+
+    return {
+      filename: imageUrl.split('/').pop(),
+      dimensions: `${metadata.width}x${metadata.height}`,
+      camera: `${metadata.make} ${metadata.model}`,
+      date: metadata.date_time,
+      location: metadata.gps ? {
+        lat: metadata.gps.latitude,
+        lng: metadata.gps.longitude
+      } : null,
+      fileSize: metadata.file_size
+    };
+  } catch (error) {
+    console.error('Metadata extraction failed:', error);
+    return null;
+  }
+};
+
+// Usage
+const imageInfo = await processImageMetadata('https://example.com/photo.jpg');
+console.log('Image info:', imageInfo);
+```

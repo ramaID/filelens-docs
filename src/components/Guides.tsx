@@ -3,26 +3,24 @@ import { Heading } from '@/components/Heading'
 
 const guides = [
   {
-    href: '/authentication',
-    name: 'Authentication',
-    description: 'Learn how to authenticate your API requests.',
+    href: '/quickstart',
+    name: 'Quickstart',
+    description: 'Get started with FileLens in minutes with our quick setup guide.',
   },
   {
-    href: '/pagination',
-    name: 'Pagination',
-    description: 'Understand how to work with paginated responses.',
+    href: '/implementation',
+    name: 'Implementation',
+    description: 'Complete integration guide with code examples for popular languages.',
   },
   {
-    href: '/errors',
-    name: 'Errors',
-    description:
-      'Read about the different types of errors returned by the API.',
+    href: '/multi-page',
+    name: 'Multi-Page Processing',
+    description: 'Learn how to process all pages in PDF, DOC, DOCX, PPT, PPTX files.',
   },
   {
-    href: '/webhooks',
-    name: 'Webhooks',
-    description:
-      'Learn how to programmatically configure webhooks for your app.',
+    href: '/docker',
+    name: 'Docker Deployment',
+    description: 'Deploy FileLens using Docker with production-ready configurations.',
   },
 ]
 

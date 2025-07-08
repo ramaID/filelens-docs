@@ -8,6 +8,7 @@ export const sections = [
   { title: 'Endpoints', id: 'endpoints' },
   { title: 'Request Parameters', id: 'request-parameters' },
   { title: 'Multi-Page Documents', id: 'multi-page-documents' },
+  { title: 'Metadata Extraction', id: 'metadata-extraction' },
   { title: 'Input Formats', id: 'input-formats' },
   { title: 'Response Formats', id: 'response-formats' },
   { title: 'Error Handling', id: 'error-handling' },
@@ -304,16 +305,262 @@ Submit a preview generation job for processing.
 
 ---
 
-### Job Status Check
+### Asynchronous Metadata Extraction
 
-Check the status of an asynchronous job.
+Submit a metadata extraction job for processing.
 
 <Row>
   <Col>
 
-    **Endpoint:** `GET /preview/status/{job_id}`
+    **Endpoint:** `POST /metadata/async`
 
-    Check the processing status of an asynchronous job. Use the job ID returned from the async preview endpoint.
+    Submit a job for asynchronous metadata extraction. Best for large image files or batch processing. Returns a job ID for status tracking.
+
+    #### Request Body
+
+    - `input` (string, required): Image input (URL, base64, or file path)
+
+  </Col>
+  <Col sticky>
+
+    <CodeGroup title="Request" tag="POST" label="/metadata/async">
+
+    ```bash {{ title: 'cURL' }}
+    curl -X POST http://localhost:3000/metadata/async \
+      -H "Content-Type: application/json" \
+      -d '{
+        "input": "https://example.com/large-photo.jpg"
+      }'
+    ```
+
+    ```javascript
+    const response = await fetch('http://localhost:3000/metadata/async', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: 'https://example.com/large-photo.jpg'
+      })
+    });
+
+    const result = await response.json();
+    console.log('Job ID:', result.job_id);
+    ```
+
+    ```php
+    <?php
+    $data = [
+        'input' => 'https://example.com/large-photo.jpg'
+    ];
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]);
+
+    $response = file_get_contents(
+        'http://localhost:3000/metadata/async',
+        false,
+        $context
+    );
+    $result = json_decode($response, true);
+    echo 'Job ID: ' . $result['job_id'];
+    ?>
+    ```
+
+    </CodeGroup>
+
+    ```json {{ title: 'Response' }}
+    {
+      "success": true,
+      "message": "Metadata extraction job created successfully",
+      "job_id": "550e8400-e29b-41d4-a716-446655440001"
+    }
+    ```
+
+  </Col>
+</Row>
+
+---
+
+### Synchronous Metadata Extraction
+
+Extract image metadata immediately and return detailed information.
+
+<Row>
+  <Col>
+
+    **Endpoint:** `POST /metadata`
+
+    Extract metadata from images synchronously for immediate use. Returns comprehensive EXIF data, GPS coordinates, and image properties without generating previews.
+
+    #### Request Body
+
+    - `input` (string, required): Image input (URL, base64, or file path)
+
+  </Col>
+  <Col sticky>
+
+    <CodeGroup title="Request" tag="POST" label="/metadata">
+
+    ```bash {{ title: 'cURL' }}
+    curl -X POST http://localhost:3000/metadata \
+      -H "Content-Type: application/json" \
+      -d '{
+        "input": "https://example.com/photo.jpg"
+      }'
+    ```
+
+    ```javascript
+    const response = await fetch('http://localhost:3000/metadata', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: 'https://example.com/photo.jpg'
+      })
+    });
+
+    const result = await response.json();
+    console.log('Metadata:', result.metadata);
+    ```
+
+    ```php
+    <?php
+    $data = [
+        'input' => 'https://example.com/photo.jpg'
+    ];
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]);
+
+    $response = file_get_contents(
+        'http://localhost:3000/metadata',
+        false,
+        $context
+    );
+    $result = json_decode($response, true);
+    ?>
+    ```
+
+    </CodeGroup>
+
+    ```json {{ title: 'Response' }}
+    {
+      "success": true,
+      "message": "Metadata extracted successfully",
+      "metadata": {
+        "width": 3024,
+        "height": 4032,
+        "format": "jpeg",
+        "color_space": "*color.YCbCr",
+        "file_size": 2456789,
+        "make": "Apple",
+        "model": "iPhone 12 Pro",
+        "date_time": "2023:10:15 14:30:22",
+        "exposure_time": "1/120",
+        "f_number": "f/1.6",
+        "iso": "64",
+        "focal_length": "5.1mm",
+        "flash": "Flash did not fire",
+        "orientation": "Horizontal (normal)",
+        "gps": {
+          "latitude": 37.7749,
+          "longitude": -122.4194,
+          "altitude": 10.5
+        }
+      }
+    }
+    ```
+
+  </Col>
+</Row>
+
+---
+
+### Unified Job Status Check
+
+Check the status of any asynchronous job using the unified endpoint.
+
+<Row>
+  <Col>
+
+    **Endpoint:** `GET /status/{job_id}` ⭐ **Recommended**
+
+    Check the processing status of any asynchronous job using the new unified endpoint. This endpoint works for both preview generation and metadata extraction jobs. Recommended for all new integrations.
+
+  </Col>
+  <Col sticky>
+
+    <CodeGroup title="Request" tag="GET" label="/status/{job_id}">
+
+    ```bash {{ title: 'cURL' }}
+    curl http://localhost:3000/status/550e8400-e29b-41d4-a716-446655440000
+    ```
+
+    ```javascript
+    const jobId = '550e8400-e29b-41d4-a716-446655440000';
+    const response = await fetch(`http://localhost:3000/status/${jobId}`);
+    const status = await response.json();
+    ```
+
+    ```php
+    <?php
+    $jobId = '550e8400-e29b-41d4-a716-446655440000';
+    $response = file_get_contents("http://localhost:3000/status/{$jobId}");
+    $status = json_decode($response, true);
+    ?>
+    ```
+
+    </CodeGroup>
+
+    ```json {{ title: 'Response' }}
+    {
+      "job_id": "550e8400-e29b-41d4-a716-446655440000",
+      "status": "completed",
+      "message": "Preview generated successfully",
+      "result_urls": [
+        "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_1.png",
+        "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_2.png",
+        "/download/result_550e8400-e29b-41d4-a716-446655440000_1641312000_3.png"
+      ],
+      "total_pages": 3,
+      "progress": 100,
+      "metadata": {
+        "width": 3024,
+        "height": 4032,
+        "format": "jpeg"
+      }
+    }
+    ```
+
+  </Col>
+</Row>
+
+---
+
+### Legacy Job Status Check
+
+Check the status of an asynchronous job using the legacy endpoint.
+
+<Row>
+  <Col>
+
+    **Endpoint:** `GET /preview/status/{job_id}` 🔄 **Legacy (Still Supported)**
+
+    Check the processing status of an asynchronous job (both preview generation and metadata extraction). This endpoint is maintained for backward compatibility. Use the job ID returned from any async endpoint.
+
+    **Note:** This endpoint works identically to `/status/{job_id}` but is less future-proof. For new integrations, use the unified endpoint above.
 
   </Col>
   <Col sticky>
@@ -436,12 +683,14 @@ Download generated preview files.
 ### Page Processing Behavior
 
 When `all_pages: true` (default):
+
 - All pages are processed
 - Returns array of download URLs
 - Each URL corresponds to one page
 - Pages are numbered sequentially (1, 2, 3, ...)
 
 When `all_pages: false`:
+
 - Only the first page is processed
 - Returns single-item array with one download URL
 
@@ -450,16 +699,19 @@ When `all_pages: false`:
 Generated files follow these patterns:
 
 **Synchronous requests:**
+
 ```
 sync_{timestamp}_{pid}_{hash}_{page_number}.{extension}
 ```
 
 **Asynchronous requests:**
+
 ```
 result_{job_id}_{timestamp}_{page_number}.{extension}
 ```
 
 Examples:
+
 - `sync_1641312000_12345_abc1_1.jpg` (sync, page 1)
 - `result_550e8400-e29b-41d4-a716-446655440000_1641312000_3.png` (async, page 3)
 
@@ -588,18 +840,18 @@ const response = await fetch('http://localhost:3000/preview', {
       width: 800,
       height: 600,
       quality: 90,
-      all_pages: true
-    }
-  })
-});
+      all_pages: true,
+    },
+  }),
+})
 
-const result = await response.json();
-console.log(`Generated ${result.total_pages} previews`);
+const result = await response.json()
+console.log(`Generated ${result.total_pages} previews`)
 
 // Download all preview files
 for (const url of result.preview_urls) {
-  const fileResponse = await fetch(`http://localhost:3000${url}`);
-  const blob = await fileResponse.blob();
+  const fileResponse = await fetch(`http://localhost:3000${url}`)
+  const blob = await fileResponse.blob()
   // Save blob to file...
 }
 ```
@@ -659,7 +911,7 @@ curl -X POST http://localhost:3000/preview/async \
 ```
 
 ```bash {{ title: 'Check Status' }}
-curl http://localhost:3000/preview/status/550e8400-e29b-41d4-a716-446655440000
+curl http://localhost:3000/status/550e8400-e29b-41d4-a716-446655440000
 ```
 
 ```bash {{ title: 'Download Files' }}
@@ -699,12 +951,12 @@ const response = await fetch('http://localhost:3000/preview', {
     options: {
       width: 1280,
       height: 720,
-      preview_time: '00:02:30.000'
-    }
-  })
-});
+      preview_time: '00:02:30.000',
+    },
+  }),
+})
 
-const result = await response.json();
+const result = await response.json()
 // Download thumbnail from result.preview_urls[0]
 ```
 
@@ -740,37 +992,83 @@ file_put_contents('video_thumbnail.jpg', $thumbnail);
 
 </CodeGroup>
 
-## Performance Considerations
+### Image Metadata Extraction
 
-### When to Use Sync vs Async
+<CodeGroup>
 
-**Use Synchronous (`/preview`)** for:
-- Small files (< 10MB)
-- Few pages (< 10 pages)
-- Real-time applications
+```bash {{ title: 'cURL' }}
+curl -X POST http://localhost:3000/metadata \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/photo.jpg"
+  }'
+```
 
-**Use Asynchronous (`/preview/async`)** for:
-- Large files (> 10MB)
-- Many pages (> 10 pages)
-- Batch processing
+```javascript
+const response = await fetch('http://localhost:3000/metadata', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    input: 'https://example.com/photo.jpg'
+  })
+})
 
-### Optimization Tips
+const result = await response.json()
+console.log(`Image: ${result.metadata.width}x${result.metadata.height}`)
+console.log(`Camera: ${result.metadata.make} ${result.metadata.model}`)
+console.log(`Location: ${result.metadata.gps?.latitude}, ${result.metadata.gps?.longitude}`)
+```
 
-1. **Specify dimensions**: Reduces processing time and file size
-2. **Use appropriate quality**: Lower quality = faster processing
-3. **Enable all_pages only when needed**: Single page is much faster
-4. **Download files promptly**: Temporary files are cleaned up periodically
+```php
+<?php
+$data = [
+    'input' => 'https://example.com/photo.jpg'
+];
 
-## Rate Limiting and Quotas
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, 'http://localhost:3000/metadata');
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-Currently, no rate limiting is implemented. For production use, consider implementing:
+$response = curl_exec($ch);
+curl_close($ch);
 
-- Per-IP rate limiting
-- API key-based quotas
-- Concurrent job limits
+$result = json_decode($response, true);
+$metadata = $result['metadata'];
 
-## File Size Limits
+echo "Image: {$metadata['width']}x{$metadata['height']}\n";
+echo "Camera: {$metadata['make']} {$metadata['model']}\n";
+if (isset($metadata['gps'])) {
+    echo "Location: {$metadata['gps']['latitude']}, {$metadata['gps']['longitude']}\n";
+}
+?>
+```
 
-- **Maximum file size**: 100MB (configurable)
-- **Maximum pages**: 100 pages per document
-- **Timeout**: 5 minutes per job
+</CodeGroup>
+
+### Async Metadata Processing
+
+<CodeGroup>
+
+```bash {{ title: 'Submit Job' }}
+curl -X POST http://localhost:3000/metadata/async \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/large-photo.jpg"
+  }'
+```
+
+```bash {{ title: 'Check Status' }}
+curl http://localhost:3000/status/550e8400-e29b-41d4-a716-446655440001
+```
+
+```bash {{ title: 'Get Results' }}
+# When job is complete, metadata is available in the status response
+curl http://localhost:3000/status/550e8400-e29b-41d4-a716-446655440001
+```
+
+</CodeGroup>

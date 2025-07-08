@@ -3,49 +3,112 @@ import { Resources } from '@/components/Resources'
 import { HeroPattern } from '@/components/HeroPattern'
 
 export const metadata = {
-  title: 'FileLens API Documentation',
+  title: 'FileLens Documentation',
   description:
-    'Learn everything there is to know about the FileLens API and integrate FileLens into your application for high-performance file preview generation.',
+    'FileLens is a high-performance file preview generation service that provides multi-page document processing with download URL responses. Generate previews from 450+ file formats.',
 }
 
 export const sections = [
-  { title: 'Guides', id: 'guides' },
-  { title: 'Resources', id: 'resources' },
+  { title: 'Getting Started', id: 'getting-started' },
+  { title: 'Key Features', id: 'key-features' },
+  { title: 'Supported Formats', id: 'supported-formats' },
+  { title: 'Quick Examples', id: 'quick-examples' },
 ]
 
 <HeroPattern />
 
-# FileLens API Documentation
+# FileLens Documentation
 
-FileLens is a high-performance file preview generation service that provides multi-page document processing with download URL responses. Generate previews from various file formats including documents, images, and videos with support for PHP, JavaScript, and Java. {{ className: 'lead' }}
+FileLens is a high-performance file preview generation service that provides multi-page document processing with download URL responses. Generate previews from various file formats including documents, images, and videos with support for 450+ file formats. {{ className: 'lead' }}
 
 <div className="not-prose mt-6 mb-16 flex gap-3">
   <Button href="/quickstart" arrow="right">
     <>Quickstart</>
   </Button>
-  <Button href="/implementation" variant="outline">
-    <>Implementation Guide</>
+  <Button href="/api" variant="outline">
+    <>API Reference</>
   </Button>
 </div>
 
 ## Getting started {{ anchor: false }}
 
-FileLens supports 450+ file formats and provides both synchronous and asynchronous processing with multi-page document handling. The service returns download URLs instead of base64 encoded data for better performance and supports configurable output dimensions, quality, and processing options. {{ className: 'lead' }}
+FileLens supports both synchronous and asynchronous processing with multi-page document handling. The service returns download URLs instead of base64 encoded data for better performance and supports configurable output dimensions, quality, and processing options. {{ className: 'lead' }}
 
 <div className="not-prose">
-  <Button href="/api" variant="text" arrow="right">
-    <>Explore API Reference</>
+  <Button href="/implementation" variant="text" arrow="right">
+    <>Implementation Guide</>
   </Button>
 </div>
 
-## Key Features
+## Key Features {{ anchor: false }}
 
 - **Multi-page Document Processing**: Generate previews for every page in PDF, DOC, DOCX, PPT, PPTX files
 - **Download URL Responses**: Returns download URLs instead of base64 encoded data for better performance
 - **Asynchronous Processing**: Support for both sync and async operations
-- **Wide Format Support**: 450+ file formats supported
+- **Wide Format Support**: 450+ file formats supported including documents, images, and videos
 - **Flexible Configuration**: Customizable output dimensions, quality, and processing options
-- **Go Implementation**: Built with Go and Gin web framework for high performance
+- **Docker Ready**: Easy deployment with Docker and Docker Compose
+- **Client Libraries**: Available for JavaScript, Python, PHP, and more
+
+## Supported Formats {{ anchor: false }}
+
+### Documents
+- **PDF**: Portable Document Format
+- **Microsoft Office**: DOC, DOCX, XLS, XLSX, PPT, PPTX
+- **OpenDocument**: ODT, ODS, ODP
+- **Rich Text**: RTF, TXT
+
+### Images
+- **Common Formats**: JPG, PNG, GIF, BMP, TIFF, WebP
+- **Vector Graphics**: SVG, EPS
+- **Raw Images**: CR2, NEF, ARW, DNG
+
+### Videos
+- **Common Formats**: MP4, AVI, MOV, WMV, FLV
+- **Web Formats**: WebM, OGV
+- **Mobile Formats**: 3GP, M4V
+
+## Quick Examples {{ anchor: false }}
+
+### Generate PDF Preview
+
+```bash
+curl -X POST http://localhost:3000/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://example.com/document.pdf",
+    "output_format": "jpg",
+    "options": {
+      "width": 800,
+      "height": 600,
+      "all_pages": false // default is true, set to false to generate preview for the first page only
+    }
+  }'
+```
+
+### JavaScript Client
+
+```javascript
+import { FileLensClient } from 'filelens-client';
+
+const client = new FileLensClient('http://localhost:3000');
+const result = await client.generatePreview(
+  'https://example.com/document.pdf',
+  { width: 800, height: 600, format: 'jpg' }
+);
+```
+
+### Python Client
+
+```python
+from filelens_client import FileLensClient
+
+client = FileLensClient('http://localhost:3000')
+result = client.generate_preview(
+    'https://example.com/document.pdf',
+    width=800, height=600, format='jpg'
+)
+```
 
 <Guides />
 

@@ -1,30 +1,86 @@
 export const metadata = {
   title: 'Quickstart',
-  description:
-    'This guide will get you all set up and ready to use the FileLens API. We\'ll cover how to get started and how to make your first API request for file preview generation.',
+  description: 'Get started with FileLens file preview generation in minutes.',
 }
+
+export const sections = [
+  { title: 'Installation', id: 'installation' },
+  { title: 'First Preview', id: 'first-preview' },
+  { title: 'Multi-Page Documents', id: 'multi-page-documents' },
+  { title: 'Async Processing', id: 'async-processing' },
+  { title: 'Client Libraries', id: 'client-libraries' },
+  { title: 'Next Steps', id: 'next-steps' },
+]
 
 # Quickstart
 
-This guide will get you all set up and ready to use the FileLens API. We'll cover how to get started using the API and how to make your first API request. We'll also look at where to go next to find all the information you need to take full advantage of our powerful file preview generation service. {{ className: 'lead' }}
+Get started with FileLens file preview generation in minutes. This guide will walk you through generating your first preview and understanding the core concepts. {{ className: 'lead' }}
 
-<Note>
-  FileLens currently runs without authentication for development. For production deployments, consider implementing API keys or JWT tokens for security.
-</Note>
+## Installation {{ anchor: false }}
 
-## Base URL
+FileLens can be deployed using Docker, which is the recommended approach for both development and production environments.
 
-The FileLens API is available at:
+### Using Docker Compose (Recommended)
 
+```bash
+# Clone the repository
+git clone <repository-url>
+cd filelens
+
+# Start the service
+docker-compose up -d
+
+# Check if it's running
+curl http://localhost:3000/health
 ```
-http://localhost:3000
+
+### Using Docker
+
+```bash
+# Build and run the container
+docker build -t filelens:latest .
+docker run -d -p 3000:3000 --name filelens filelens:latest
 ```
 
-For production deployments, replace `localhost:3000` with your actual server address.
+The service will be available at `http://localhost:3000`.
 
-## Choose your implementation
+---
 
-FileLens works with any HTTP client, but we'll focus on implementation examples for PHP, JavaScript, and Java. In the following examples, you can see how to make requests in each language.
+## Generate Your First Preview {{ anchor: false }}
+
+Once FileLens is running, you can generate your first preview using a simple HTTP request.
+
+### Basic Example
+
+```bash
+curl -X POST http://localhost:3000/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    "output_format": "jpg"
+  }'
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Preview generated successfully",
+  "preview_urls": [
+    "/download/sync_1641312000_12345_def4_1.jpg"
+  ],
+  "total_pages": 1,
+  "job_id": null
+}
+```
+
+### Download the Preview
+
+```bash
+curl -X GET http://localhost:3000/download/sync_1641312000_12345_def4_1.jpg \
+  -o preview.jpg
+```
 
 <CodeGroup>
 
